@@ -45,6 +45,7 @@ class DatasetType(SerializableEnum):
     SEVEN_SCENES = 15
     NEURAL_RGBD = 16
     ROVER = 17
+    RECORDED = 18
 
 
 @register_class

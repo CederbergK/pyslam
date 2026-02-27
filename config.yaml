@@ -10,13 +10,24 @@ DATASET:
   #type: NEURAL_RGBD_DATASET
   #type: BONN_RGBD_DYNAMIC_DATASET
   #type: ROVER_DATASET  
-  type: VIDEO_DATASET
+  #type: VIDEO_DATASET
   #type: SCANNET_DATASET
   #type: ROS1BAG_DATASET
   #type: ROS2BAG_DATASET
   #type: MCAP_DATASET
   #type: FOLDER_DATASET
   #type: LIVE_DATASET  # Not recommended for current development stage
+  type: RECORDED_DATASET  
+
+RECORDED_DATASET:
+  type: recorded
+  sensor_type: rgbd 
+  base_path: /home/albincederberg/Videos
+  name: 'LoopTest'
+  settings: settings/d435i_640_480.yaml 
+  start_frame_id: 0
+  associations: associations.txt
+  groundtruth_file: auto
 
 
 KITTI_DATASET:
@@ -37,10 +48,10 @@ KITTI_DATASET:
 TUM_DATASET:
   type: tum
   sensor_type: rgbd # Here, 'sensor_type' can be 'mono' or 'rgbd'
-  base_path: /home/luigi/Work/datasets/rgbd_datasets/tum
+  base_path: /home/albincederberg/Videos/videos
   #
-  name: rgbd_dataset_freiburg3_long_office_household
-  settings: settings/TUM3.yaml # do not forget to correctly set the corresponding camera settings file    
+  name: test_16feb #rgbd_dataset_freiburg3_long_office_household
+  settings: settings/ROVER_d435i.yaml #settings/TUM3.yaml # do not forget to correctly set the corresponding camera settings file    
   #
   #name: rgbd_dataset_freiburg1_xyz 
   #settings: settings/TUM1.yaml # do not forget to correctly set the corresponding camera settings file
@@ -159,26 +170,29 @@ BONN_RGBD_DYNAMIC_DATASET:
 ROVER_DATASET:
   type: rover
   sensor_type: rgbd # Here, 'sensor_type' can be 'mono' or 'rgbd'
-  base_path: /home/luigi/Work/datasets/rgbd_datasets/rover
-  camera_name: realsense_D435i  # name of the camera folder in the base_path/name folder
+  base_path: /home/albincederberg/Videos
+  camera_name: kontor15  # name of the camera folder in the base_path/name folder
   #
   #name: 'garden_large_2023-08-18/2023-08-18'
   #name: 'garden_small_2023-08-18/2023-08-18'
-  name: 'campus_small_2023-11-23/2023-11-23'
+  #name: 'campus_small_2023-11-23/2023-11-23'
+  #name: 'campus_small_2024-02-19/2024-02-19'
+  name: 'videos'
   settings: settings/ROVER_d435i.yaml
+  start_frame_id: 950
   #
   associations: associations.txt
-  groundtruth_file: auto
-  environment_type: outdoor
+  groundtruth_file: auto #groundtruth.txt
+  environment_type: indoor #outdoor
 
 
 VIDEO_DATASET:
   type: video
   sensor_type: mono   # Here, 'sensor_type' can be only 'mono' 
   #
-  # base_path: ./data/videos/kitti00
-  # settings: settings/KITTI00-02.yaml
-  # name: video.mp4
+  #base_path: ./data/videos/kitti00
+  #settings: settings/KITTI00-02.yaml
+  #name: video.mp4
   #
   base_path: ./data/videos/kitti06
   settings: settings/KITTI04-12.yaml
@@ -188,7 +202,7 @@ VIDEO_DATASET:
   #settings: settings/WEBCAM.yaml 
   #name: video.mp4
   #
-  groundtruth_file: groundtruth.txt
+  groundtruth_file: null # groundtruth.txt
   timestamps: times.txt # to be intended as the frame timestamps
 
 
@@ -314,7 +328,7 @@ SYSTEM_STATE:
  
 
 SAVE_TRAJECTORY:
-  save_trajectory: True
+  save_trajectory: False
   format_type: kitti             # supported formats: `tum`, `kitti`, `euroc`
   output_folder: results/metrics # relative to pyslam root folder 
   basename: trajectory           # basename of the trajectory saving output

@@ -58,6 +58,7 @@ from .dataset import (
     SevenScenesDataset,
     NeuralRGBDDataset,
     RoverDataset,
+    RecordedDataset
 )
 from .mcap_dataset import McapDataset
 
@@ -244,6 +245,8 @@ def dataset_factory(config: "Config") -> Dataset:
             type=DatasetType.ROVER,
             environment_type=environment_type,
         )
+    if type == "recorded":
+        dataset = RecordedDataset(path, name, sensor_type, associations, start_frame_id, DatasetType.RECORDED)
 
     dataset.minimal_config = MinimalDatasetConfig(config=config)
 
