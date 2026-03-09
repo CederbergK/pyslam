@@ -31,6 +31,8 @@ import trajectory_tools
 
 from numba import njit
 
+from pyslam.config_parameters import Parameters # added by Viktor
+
 
 @njit(cache=True)
 def set_rotations_from_translations(t_wi):
@@ -150,7 +152,7 @@ def find_trajectories_associations(
     filter_associations = []
     gt_associations = []
     timestamps_associations = []
-    offset = 2.5
+    offset = Parameters.time_offset
 
     # First, find associations between timestamps in filter and gt
     for i, timestamp in enumerate(filter_timestamps):
