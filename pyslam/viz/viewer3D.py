@@ -784,14 +784,14 @@ class Viewer3D(object):
         self.gl_object_set.set_bounding_box_line_width(2)
 
     def camera_to_agv_pose(self, Twc):
-        offset = np.array([0.15, 0.0, -0.06])
+        #offset = np.array([0.15, 0.0, -0.06])
         T = Twc.copy()
-        T[0:3, 3] = Twc[0:3, 3] + Twc[0:3, 0:3] @ offset
+        T[0:3, 3] = Twc[0:3, 3] + Twc[0:3, 0:3] @ Parameters.camera_offset
         return T
     
     def camera_to_agv_position(self, Twc):
-        offset = np.array([0.15, 0.0, -0.06])
-        return Twc[0:3,3] + Twc[0:3,0:3] @ offset
+        #offset = np.array([0.15, 0.0, -0.06])
+        return Twc[0:3,3] + Twc[0:3,0:3] @ Parameters.camera_offset
 
     def viewer_refresh(
         self,

@@ -18,6 +18,7 @@
 """
 
 import os
+import numpy as np
 
 # NOTE: The actual path of this file is pyslam/config_parameters.py.
 #       For convenience, it is also exposed as a symlink in the root folder of the project.
@@ -30,6 +31,11 @@ kRootFolder = os.path.join(kScriptFolder, "..")
 
 # List of shared static parameters for configuring SLAM modules
 class Parameters:
+    # ================================================================
+    # Parmeters added by us
+    # ================================================================
+    camera_offset = np.array([0.15, 0.0, -0.1])
+    time_offset = 2.5
 
     # ================================================================
     # C++ core
