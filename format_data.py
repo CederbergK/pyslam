@@ -5,14 +5,14 @@ import os
 import math
 
 #Choose which files you want to create from Realsense bag.
-GENERATE_IMG   = False
-GENERATE_ASSOC = False
+GENERATE_IMG   = True
+GENERATE_ASSOC = True
 GENERATE_GT    = True
 
 
 base = "/home/albincederberg/Videos/"
-bag = base+"Bags/LoopTest.bag" #File path for recorded realsense bag
-dir = base+"LoopTest" #Path of the folder that will contain the folders:[RGB], [Depth] and the files: associations.txt, groundtruth.txt
+bag = base+"Bags/Dynamic.bag" #File path for recorded realsense bag
+dir = base+"Dynamic" #Path of the folder that will contain the folders:[RGB], [Depth] and the files: associations.txt, groundtruth.txt
 
 
 rgb_dir = dir+"/rgb" #[RGB]- image folder
@@ -42,7 +42,7 @@ depth_files = sorted(os.listdir(depth_dir))
 
 #GT-params
 gt_out =  dir + "/groundtruth.txt"
-lidar_data=  base + "/LidarData/"+ "LoopTest"
+lidar_data=  base + "/LidarData/"+ "Dynamic"
 
 
 ################IMAGES########################
@@ -149,8 +149,8 @@ if GENERATE_GT:
             qw = str(math.cos(float(vals[4])/2))
             # TUM FORMAT [t,x,y,z,qx,qy,qz,qw]
             # Does not seem to impact SLAM but has tobe on CV coordinates for VO to work.
-            #text += f"{vals[1]} {vals[2]} {vals[3]} 0 0 0 {qz} {qw}\n" # #Robot coordinates with z up, x forward, y left]
-            text += f"{vals[1]} -{vals[3]} 0 -{vals[2]} 0 0 {qz} {qw}\n"  #CV coordinates with z forward, x right, y down]
+            text += f"{vals[1]} {vals[2]} {vals[3]} 0 0 0 {qz} {qw}\n" # #Robot coordinates with z up, x forward, y left]
+            #text += f"{vals[1]} -{vals[3]} 0 -{vals[2]} 0 0 {qz} {qw}\n"  #CV coordinates with z forward, x right, y down]
 
     with open(gt_out, "w") as f:
         f.write(text)
