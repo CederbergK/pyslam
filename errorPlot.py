@@ -94,9 +94,9 @@ def associate(first_list, second_list, offset=0, max_difference=1/41,startTime=0
         return matches
 
 #### Main code ####
-Plot = True
+Plot = False
 IncludeNatNav = True
-
+offset = np.array([0.04,0.0,-0.06]) 
 test_name = "Dynamic"
 
 estimation = open("/home/albincederberg/pyslam/results/"+test_name+"/trajectory_online.txt", "r", encoding="utf-8")
@@ -105,7 +105,7 @@ natNav = open("/home/albincederberg/Videos/"+test_name+"/natnav", "r", encoding=
 
 t, x, y, z = [], [], [], []
 t_gt, x_gt, y_gt, z_gt ,q_w= [], [], [], [], []
-t_nat, x_nat, y_nat = [], [], []
+t_nn, x_nn, y_nn = [], [], []
 #Read estimate data
 data = estimation.read()
 lines = data.split("\n")
@@ -117,36 +117,50 @@ for line in lines:
         x.append(float(vals[1]))
         z.append(float(vals[3]))
 
-data = gt.read()
-lines = data.split("\n")
-lines.pop(-1)
+data_gt = gt.read()
+lines_gt = data_gt.split("\n")
+lines_gt.pop(-1)
 
-#Read GT data
-for line in lines:
+if IncludeNatNav:
+    data_nn = natNav.read()
+    lines_nn = data_nn.split("\n")
+    lines_nn.pop(0)
+
+    for line_gt in lines_gt:
+        vals = line_gt.split(" ")
+        t_gt.append(float(vals[0]))
+    for line_nn in lines_nn:
+        vals = line_nn.split(" ")
+        if "state" in line_nn:
+            t_nn.append(float(vals[1]))
+    aligned = [t for t in t_gt if t in t_nn]
+
+    for line_gt in lines_gt:
+        vals = line_gt.split(" ")
+        if float(vals[0]) in aligned:
+            x_gt.append(float(vals[1]))
+            y_gt.append(float(vals[2]))
+            q_w.append(float(vals[7]))
+    for line_nn in lines_nn:
+        vals = line_nn.split(" ")
+        if "state" in line_nn and float(vals[1]) in aligned:
+            x_nn.append(float(vals[2]))
+            y_nn.append(float(vals[3]))
+else: #Read GT data
+     for line in lines:
         vals = line.split(" ")
         t_gt.append(float(vals[0]))
         x_gt.append(float(vals[1]))
         y_gt.append(float(vals[2]))
         q_w.append(float(vals[7]))
 
-#Read NatNav data
-data = natNav.read()
-lines = data.split("\n")
-lines.pop(0)
-for line in lines:
-    vals = line.split(" ")
-    if "state" in line:
-        t_nat.append(float(vals[1]))
-        x_nat.append(float(vals[2]))
-        y_nat.append(float(vals[3]))  
 
-
-matches  = associate(t,t_gt, offset=4.5, max_difference=1/41,startTime=150) #2.78 for LoopTest, 4.5 for Dynamic
+matches  = associate(t, aligned, offset=4.6, max_difference=1/41,startTime=150) #2.78 for LoopTest, 4.5 for Dynamic
 est_matches = []
 gt_matches = []
 nn_matches = []
 t_matched = []
-offset = np.array([-0.0206999,   0.0,         -0.19049779]) 
+
 
 #Match timestamps and do camera to body translation
 for i in matches:
@@ -156,7 +170,7 @@ for i in matches:
     z_corr = offset[0] * math.cos(yaw) - offset[2] * math.sin(yaw)
     est_matches.append([x[i]+x_corr, 0.0, z[i]+z_corr])    # estimated
     gt_matches.append([x_gt[j], y_gt[j], 0.0])  # ground truth
-    nn_matches.append([x_nat[j], y_nat[j], 0.0])  # NatNav
+    nn_matches.append([x_nn[j], y_nn[j], 0.0])  # NatNav
     t_matched.append(matches[i][2])
 
 est_arr = np.asarray(est_matches, dtype=float)
@@ -168,8 +182,6 @@ nn_arr  = np.asarray(nn_matches, dtype=float)
 T_gt_est, T_est_gt, is_ok = align_3d_points_with_svd(gt_arr, est_arr, find_scale=False)
 est_transformed = (T_gt_est[:3, :3] @ est_arr.T).T + T_gt_est[:3, 3]
 
-#gt_transformed = (T_est_gt[:3, :3] @ gt_arr.T).T + T_est_gt[:3, 3]
-
 t_matched = [t - t_matched[0] for t in t_matched] #Timestamps for ploting
 
 
@@ -178,7 +190,6 @@ errorY = est_transformed[:, [1]] - gt_arr[:, [1]]
 traj_dists = np.linalg.norm(np.column_stack((errorX, errorY)), axis=1)
 rms_error = np.sqrt(np.mean(np.power(traj_dists, 2)))
 print("Estimate errors:")
-
 print("Max-x: %.3f Max-y: %.3f RMS: %.3f" % (max(abs(errorX))[0],
                                      max(abs(errorY))[0],
                                      rms_error))
@@ -209,7 +220,6 @@ if Plot:
     ax.grid(True, linestyle='--', alpha=0.4)
     ax.legend()
     fig.tight_layout()
-
 
 
 
