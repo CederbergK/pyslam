@@ -787,11 +787,14 @@ class Viewer3D(object):
         #offset = np.array([0.15, 0.0, -0.06])
         T = Twc.copy()
         T[0:3, 3] = Twc[0:3, 3] + Twc[0:3, 0:3] @ Parameters.camera_offset
+        T[1,3] = 0
         return T
     
     def camera_to_agv_position(self, Twc):
         #offset = np.array([0.15, 0.0, -0.06])
-        return Twc[0:3,3] + Twc[0:3,0:3] @ Parameters.camera_offset
+        t = Twc[0:3,3] + Twc[0:3,0:3] @ Parameters.camera_offset
+        t[1] = 0
+        return t
 
     def viewer_refresh(
         self,

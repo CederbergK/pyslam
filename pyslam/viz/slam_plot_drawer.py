@@ -650,17 +650,17 @@ class SlamPlotDrawerThread:
                             print(
                                 f"SlamPlotDrawerThread: err_x_max: {err_x_max}, err_y_max: {err_y_max}, err_z_max: {err_z_max}"
                             )
-                        traj_errors = gt_traj[:, [0, 2]] - aligned_estimated_traj[:, [0, 2]] #Only considers x and z (CV-coordinate system!)
+                        traj_errors = gt_traj[:, [0, 1, 2]] - aligned_estimated_traj[:, [0, 1, 2]] #Only considers x and z (CV-coordinate system!)
                         Printer.red(f"ERROR SHAPE {traj_errors.shape}")
                         traj_dists = np.linalg.norm(traj_errors, axis=1)
                         rms_error = np.sqrt(np.mean(np.power(traj_dists, 2)))
                         time_errx_signal = [filter_timestamps, abs(traj_errors[:, 0])]
-                        #time_erry_signal = [filter_timestamps, traj_errors[:, 1]]
-                        time_errz_signal = [filter_timestamps, abs(traj_errors[:, 1])]
+                        time_erry_signal = [filter_timestamps, traj_errors[:, 1]]
+                        time_errz_signal = [filter_timestamps, abs(traj_errors[:, 2])]
                         
                         time_rms_error_signal = [filter_timestamps[-1], rms_error]
                         self.traj_error_plt.draw(time_errx_signal, "err_x", color="r", append=False)
-                        #self.traj_error_plt.draw(time_erry_signal, "err_y", color="g", append=False)
+                        self.traj_error_plt.draw(time_erry_signal, "err_y", color="g", append=False)
                         self.traj_error_plt.draw(time_errz_signal, "err_z", color="b", append=False)
                         self.traj_error_plt.draw(
                             time_rms_error_signal, "RMS error (ATE)", color="c", append=True
