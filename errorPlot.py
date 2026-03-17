@@ -60,7 +60,6 @@ def align_3d_points_with_svd(gt_points, est_points, find_scale=True):
     is_ok = True
     return T_gt_est, T_est_gt, is_ok
 
-
 def associate(first_list, second_list, offset=0, max_difference=1/41,startTime=0.0):
         """
         Associate two dictionaries of (stamp,data). As the time stamps never match exactly, we aim
@@ -93,18 +92,23 @@ def associate(first_list, second_list, offset=0, max_difference=1/41,startTime=0
         print(f"[associate] Number of matches: {len(matches)}, number of missing associations: {num_missing_associations}")
         return matches
 
+def roll_from_estimate(qx, qy, qz, qw):
+    num = math.sqrt(1+2*(qw*qy + qx*qz))
+    den = math.sqrt(1-2*(qw*qy + qx*qz))
+    return -math.pi/2+2*math.atan2(num, den)
+
+
 #### Main code ####
-Plot = False
+Plot = True
 IncludeNatNav = True
-offset = np.array([0.04,0.0,-0.06]) 
-test_name = "Dynamic"
+offset = np.array([0.04,0.0,-0.06]) #0.04,0.0,-0.06
+test_name = "Dynamic" #LoopTest, Dynamic, Sparse, Ceiling
 
 estimation = open("/home/albincederberg/pyslam/results/"+test_name+"/trajectory_online.txt", "r", encoding="utf-8")
-gt = open("/home/albincederberg/Videos/"+test_name+"/groundtruth.txt", "r", encoding="utf-8")
-natNav = open("/home/albincederberg/Videos/"+test_name+"/natnav", "r", encoding="utf-8")
+gt = open("/home/albincederberg/Videos/LidarData/"+test_name, "r", encoding="utf-8")
 
-t, x, y, z = [], [], [], []
-t_gt, x_gt, y_gt, z_gt ,q_w= [], [], [], [], []
+t, x, z ,yaw = [], [], [], []
+t_gt, x_gt, y_gt, yaw_gt = [], [], [], []
 t_nn, x_nn, y_nn = [], [], []
 #Read estimate data
 data = estimation.read()
@@ -116,19 +120,24 @@ for line in lines:
         t.append(float(vals[0]))
         x.append(float(vals[1]))
         z.append(float(vals[3]))
+        yaw.append(-roll_from_estimate(float(vals[4]), float(vals[5]), float(vals[6]), float(vals[7])))
+
 
 data_gt = gt.read()
 lines_gt = data_gt.split("\n")
-lines_gt.pop(-1)
+lines_gt.pop(0)
 
 if IncludeNatNav:
+    natNav = open("/home/albincederberg/Videos/"+test_name+"/natnav", "r", encoding="utf-8")
     data_nn = natNav.read()
     lines_nn = data_nn.split("\n")
     lines_nn.pop(0)
 
     for line_gt in lines_gt:
         vals = line_gt.split(" ")
-        t_gt.append(float(vals[0]))
+        if "state" in line_gt:
+            t_gt.append(float(vals[1]))
+
     for line_nn in lines_nn:
         vals = line_nn.split(" ")
         if "state" in line_nn:
@@ -137,41 +146,49 @@ if IncludeNatNav:
 
     for line_gt in lines_gt:
         vals = line_gt.split(" ")
-        if float(vals[0]) in aligned:
-            x_gt.append(float(vals[1]))
-            y_gt.append(float(vals[2]))
-            q_w.append(float(vals[7]))
+        if "state" in line_gt and float(vals[1]) in aligned:
+            x_gt.append(float(vals[2]))
+            y_gt.append(float(vals[3]))
+            yaw_gt.append(float(vals[4]))
+
+        
     for line_nn in lines_nn:
         vals = line_nn.split(" ")
         if "state" in line_nn and float(vals[1]) in aligned:
             x_nn.append(float(vals[2]))
             y_nn.append(float(vals[3]))
+
 else: #Read GT data
      for line in lines:
         vals = line.split(" ")
         t_gt.append(float(vals[0]))
         x_gt.append(float(vals[1]))
         y_gt.append(float(vals[2]))
-        q_w.append(float(vals[7]))
+        yaw_gt.append(float(vals[4]))
+        aligned = t_gt
 
 
-matches  = associate(t, aligned, offset=4.6, max_difference=1/41,startTime=150) #2.78 for LoopTest, 4.5 for Dynamic
+matches  = associate(t, aligned, offset=5, max_difference=1/41,startTime=0) #2.78 for LoopTest, 4.5 for Dynamic
 est_matches = []
 gt_matches = []
 nn_matches = []
 t_matched = []
-
+yaw_matched = []
+yaw_gt_matched = []
 
 #Match timestamps and do camera to body translation
 for i in matches:
     j  = matches[i][1]
-    yaw = -2 * math.acos(q_w[j])
-    x_corr = offset[0] * math.sin(yaw) + offset[2] * math.cos(yaw) #Corrections
-    z_corr = offset[0] * math.cos(yaw) - offset[2] * math.sin(yaw)
+    yaw_matched.append(yaw[i])
+    yaw_gt_matched.append(yaw_gt[j])
+    x_corr = offset[0] * math.sin(yaw[i]) + offset[2] * math.cos(yaw[i]) #Corrections
+    z_corr = offset[0] * math.cos(yaw[i]) - offset[2] * math.sin(yaw[i])
     est_matches.append([x[i]+x_corr, 0.0, z[i]+z_corr])    # estimated
     gt_matches.append([x_gt[j], y_gt[j], 0.0])  # ground truth
-    nn_matches.append([x_nn[j], y_nn[j], 0.0])  # NatNav
     t_matched.append(matches[i][2])
+    if IncludeNatNav:
+        nn_matches.append([x_nn[j], y_nn[j], 0.0])  # NatNav
+    
 
 est_arr = np.asarray(est_matches, dtype=float)
 gt_arr  = np.asarray(gt_matches, dtype=float)
@@ -189,29 +206,47 @@ errorX = est_transformed[:, [0]] - gt_arr[:, [0]]
 errorY = est_transformed[:, [1]] - gt_arr[:, [1]]  
 traj_dists = np.linalg.norm(np.column_stack((errorX, errorY)), axis=1)
 rms_error = np.sqrt(np.mean(np.power(traj_dists, 2)))
+
+#Convert yaw to be continuous and start at 0
+yaw_matched_converted = []
+start_angle = yaw_gt_matched[0]
+for angle in yaw_gt_matched:
+    yaw_matched_converted.append(math.asin(math.sin(angle - start_angle)))
+angle_error = []
+for i in range(len(yaw_matched)):
+    angle_error.append(math.degrees(yaw_matched[i] - yaw_matched_converted[i]))
+    #angle_error.append(yaw_matched[i] - yaw_matched_converted[i])
+
+
 print("Estimate errors:")
 print("Max-x: %.3f Max-y: %.3f RMS: %.3f" % (max(abs(errorX))[0],
                                      max(abs(errorY))[0],
                                      rms_error))
+print("Max-angle error: %.3f Average-angle error: %.3f" % (max(np.abs(angle_error)),np.mean(angle_error)))
+if IncludeNatNav:
+    errorX_nn = nn_arr[:, [0]] - gt_arr[:, [0]]
+    errorY_nn = nn_arr[:, [1]] - gt_arr[:, [1]]  
+    traj_dists_nn = np.linalg.norm(np.column_stack((errorX_nn, errorY_nn)), axis=1)
+    rms_error_nn = np.sqrt(np.mean(np.power(traj_dists_nn, 2)))
+    print("NatNav errors:")
+    print("Max-x: %.3f Max-y: %.3f RMS: %.3f" % (max(abs(errorX_nn))[0],
+                                        max(abs(errorY_nn))[0],
+                                        rms_error_nn))
 
 
-errorX_nn = nn_arr[:, [0]] - gt_arr[:, [0]]
-errorY_nn = nn_arr[:, [1]] - gt_arr[:, [1]]  
-traj_dists_nn = np.linalg.norm(np.column_stack((errorX_nn, errorY_nn)), axis=1)
-rms_error_nn = np.sqrt(np.mean(np.power(traj_dists_nn, 2)))
-print("NatNav errors:")
-print("Max-x: %.3f Max-y: %.3f RMS: %.3f" % (max(abs(errorX_nn))[0],
-                                     max(abs(errorY_nn))[0],
-                                     rms_error_nn))
+
 
 ####Plotting####
+plt.close("all")
 if Plot:
 
     fig, ax = plt.subplots(figsize=(7, 6))  # 2D axes
 
-    ax.plot(est_transformed[:, 0], est_transformed[:, 1], label='Estimated trajectory', color='#1f77b4')
-    ax.plot(gt_arr[:, 0],  gt_arr[:, 1],  label='Ground truth trajectory', color='#2ca02c')
-    ax.plot(nn_arr[:, 0],  nn_arr[:, 1],  label='NatNav trajectory', color='#ff7f0e')
+    ax.plot(est_transformed[:, 0], est_transformed[:, 1], label='Estimated trajectory', color="#34a1d4")
+    ax.plot(gt_arr[:, 0],  gt_arr[:, 1],  label='Ground truth trajectory', color="#C72929DA")
+    
+    if IncludeNatNav:
+        ax.plot(nn_arr[:, 0],  nn_arr[:, 1],  label='NatNav trajectory', color="#e49653", linestyle='--')
 
     ax.set_aspect('equal', adjustable='box')  # keep metric aspect ratio
     ax.set_xlabel('Y')
@@ -224,11 +259,21 @@ if Plot:
 
 
     ax2 = plt.figure().add_subplot()
-    ax2.plot(t_matched, traj_dists, label='Trajectory error')
-    ax2.plot(t_matched, traj_dists_nn, label='NatNav error')
+    ax2.plot(t_matched, traj_dists, label='Trajectory error', color="#34a1d4")
+    if IncludeNatNav:
+        ax2.plot(t_matched, traj_dists_nn, label='NatNav error', color="#e49653")
 
     ax2.set_xlabel('Time')
     ax2.set_ylabel('Error')
     ax2.set_title('Trajectory error over time')
+    ax2.legend()
     plt.ylim(0, 0.7)
+
+    ax3 = plt.figure().add_subplot()
+    ax3.plot(t_matched, yaw_matched, label='Estimated yaw', color="#34a1d4")
+    ax3.plot(t_matched, yaw_matched_converted, label='Ground truth yaw', color="#C72929DA")
+    #ax3.plot(t_matched, angle_error, label='Yaw error')
+    ax3.set_xlabel('Time')
+    ax3.set_ylabel('Angle (radians)')
+    ax3.legend()
     plt.show()

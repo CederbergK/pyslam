@@ -5,14 +5,16 @@ import os
 import math
 
 #Choose which files you want to create from Realsense bag.
-GENERATE_IMG   = True
-GENERATE_ASSOC = True
+GENERATE_IMG   = False
+GENERATE_ASSOC = False
 GENERATE_GT    = True
+
+testName = "Dynamic" #LoopTest, Dynamic, Sparse, Ceiling 
 
 
 base = "/home/albincederberg/Videos/"
-bag = base+"Bags/Dynamic.bag" #File path for recorded realsense bag
-dir = base+"Dynamic" #Path of the folder that will contain the folders:[RGB], [Depth] and the files: associations.txt, groundtruth.txt
+bag = base+"Bags/"+testName+".bag" #File path for recorded realsense bag
+dir = base+testName #Path of the folder that will contain the folders:[RGB], [Depth] and the files: associations.txt, groundtruth.txt
 
 
 rgb_dir = dir+"/rgb" #[RGB]- image folder
@@ -42,8 +44,7 @@ depth_files = sorted(os.listdir(depth_dir))
 
 #GT-params
 gt_out =  dir + "/groundtruth.txt"
-lidar_data=  base + "/LidarData/"+ "Dynamic"
-
+lidar_data=  base + "/LidarData/"+ testName 
 
 ################IMAGES########################
 
@@ -143,7 +144,7 @@ if GENERATE_GT:
     states = []
     text = ""
     for line in lines:
-        if "state" in line:
+        if "state" in line and "state2" not in line:
             vals = line.split(" ")
             qz = str(math.sin(float(vals[4])/2))                                        
             qw = str(math.cos(float(vals[4])/2))
