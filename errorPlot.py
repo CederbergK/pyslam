@@ -98,23 +98,28 @@ def roll_from_estimate(qx, qy, qz, qw):
     return -math.pi/2+2*math.atan2(num, den)
 
 
-#### Main code ####
+#### Parameters to change ####
 Plot = True
-IncludeNatNav = True
-offset = np.array([0.04,0.0,-0.06]) #0.04,0.0,-0.06
-test_name = "Dynamic" #LoopTest, Dynamic, Sparse, Ceiling
+IncludeNatNav = False #Avalible for Dynamic, Spare and Ceiling
+offset = np.array([0.0,0.0,0.0])
+test_name = "LoopTest" #LoopTest, Dynamic, Sparse, Ceiling
+time_offset = 2.78 #2.78 for LoopTest, 5.0 for Dynamic
 
+
+
+#### Main Code ####
 estimation = open("/home/albincederberg/pyslam/results/"+test_name+"/trajectory_online.txt", "r", encoding="utf-8")
 gt = open("/home/albincederberg/Videos/LidarData/"+test_name, "r", encoding="utf-8")
-
 t, x, z ,yaw = [], [], [], []
 t_gt, x_gt, y_gt, yaw_gt = [], [], [], []
 t_nn, x_nn, y_nn = [], [], []
+
 #Read estimate data
 data = estimation.read()
 lines = data.split("\n")
 lines.pop(-1)
 
+#Estimate, given in TUM format [t,x,y,z,qx,qy,qz,qw]
 for line in lines:
         vals = line.split(" ")
         t.append(float(vals[0]))
@@ -127,12 +132,23 @@ data_gt = gt.read()
 lines_gt = data_gt.split("\n")
 lines_gt.pop(0)
 
-if IncludeNatNav:
+if not IncludeNatNav: #Read GT data
+    for line_gt in lines_gt:
+        vals = line_gt.split(" ")
+        if "state" in line_gt:
+            t_gt.append(float(vals[1]))
+            x_gt.append(float(vals[2]))
+            y_gt.append(float(vals[3]))
+            yaw_gt.append(float(vals[4]))
+    aligned = t_gt
+
+else: #Read GT data and NatNav data
     natNav = open("/home/albincederberg/Videos/"+test_name+"/natnav", "r", encoding="utf-8")
     data_nn = natNav.read()
     lines_nn = data_nn.split("\n")
     lines_nn.pop(0)
 
+    #Reads times separately to find the aligned timestamps
     for line_gt in lines_gt:
         vals = line_gt.split(" ")
         if "state" in line_gt:
@@ -142,6 +158,7 @@ if IncludeNatNav:
         vals = line_nn.split(" ")
         if "state" in line_nn:
             t_nn.append(float(vals[1]))
+
     aligned = [t for t in t_gt if t in t_nn]
 
     for line_gt in lines_gt:
@@ -158,17 +175,10 @@ if IncludeNatNav:
             x_nn.append(float(vals[2]))
             y_nn.append(float(vals[3]))
 
-else: #Read GT data
-     for line in lines:
-        vals = line.split(" ")
-        t_gt.append(float(vals[0]))
-        x_gt.append(float(vals[1]))
-        y_gt.append(float(vals[2]))
-        yaw_gt.append(float(vals[4]))
-        aligned = t_gt
 
 
-matches  = associate(t, aligned, offset=5, max_difference=1/41,startTime=0) #2.78 for LoopTest, 4.5 for Dynamic
+
+matches  = associate(t, aligned, offset=time_offset, max_difference=1/41,startTime=0) 
 est_matches = []
 gt_matches = []
 nn_matches = []
@@ -212,6 +222,8 @@ yaw_matched_converted = []
 start_angle = yaw_gt_matched[0]
 for angle in yaw_gt_matched:
     yaw_matched_converted.append(math.asin(math.sin(angle - start_angle)))
+
+#Calculates the angle error in degrees
 angle_error = []
 for i in range(len(yaw_matched)):
     angle_error.append(math.degrees(yaw_matched[i] - yaw_matched_converted[i]))
