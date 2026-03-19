@@ -129,7 +129,7 @@ estimation = open("/home/albincederberg/pyslam/results/"+test_name+"/trajectory_
 gt = open("/home/albincederberg/Videos/LidarData/"+test_name, "r", encoding="utf-8")
 t, x, y, z, qx, qy, qz, qw, yaw = [], [], [], [], [], [], [], [], []
 t_gt, x_gt, y_gt, yaw_gt = [], [], [], []
-t_nn, x_nn, y_nn = [], [], []
+t_nn, x_nn, y_nn, yaw_nn = [], [], [], []
 
 #Read estimate data
 data = estimation.read()
@@ -196,8 +196,10 @@ else: #Read GT data and NatNav data
         if "state" in line_nn and float(vals[1]) in aligned:
             x_nn.append(float(vals[2]))
             y_nn.append(float(vals[3]))
-yaw_gt = np.unwrap(yaw_gt)
+            yaw_nn.append(float(vals[4]))
+    yaw_nn = np.unwrap(yaw_nn)
 
+yaw_gt = np.unwrap(yaw_gt)
 
 
 matches  = associate(t, aligned, offset=time_offset, max_difference=1/41,startTime=startTime) 
@@ -207,21 +209,20 @@ nn_matches = []
 t_matched = []
 yaw_matched = []
 yaw_gt_matched = []
+yaw_nn_matched =[]
 
 #Match timestamps and do camera to body translation
 for i in matches:
     j  = matches[i][1]
     yaw_matched.append(yaw[i])
     yaw_gt_matched.append(yaw_gt[j])
-    #x_corr = offset[0] * math.cos(yaw[i]) - offset[2] * math.sin(yaw[i]) #Corrections
-    #z_corr = offset[0] * math.sin(yaw[i]) + offset[2] * math.cos(yaw[i])
-    #est_matches.append([x[i]+x_corr, 0.0, z[i]+z_corr])    # estimated
     gt_matches.append([x_gt[j], y_gt[j], 0.0])  # ground truth
     t_matched.append(matches[i][2])
     if IncludeNatNav:
         nn_matches.append([x_nn[j], y_nn[j], 0.0])  # NatNav
+        yaw_nn_matched.append(yaw_nn[j])
     t_cam = np.array([x[i], y[i], z[i]])
-    R = quat_to_R(qx[i], qy[i], qz[i], qw[i])
+    R = quat_to_R(qx[i], qy[i], qz[i], qw[i])   
     t_agv = t_cam + R @ offset
     est_matches.append([t_agv[2],-t_agv[0], 0]) 
 
@@ -247,11 +248,16 @@ yaw_matched_converted = []
 start_angle = yaw_gt_matched[0]
 yaw_matched = np.array(yaw_matched)- yaw_matched[0]
 yaw_gt_matched = np.array(yaw_gt_matched)- yaw_gt_matched[0]
+if IncludeNatNav:
+    yaw_nn_matched = np.array(yaw_nn_matched)- yaw_nn_matched[0]
 
 #Calculates the angle error in degrees
 angle_error = []
+angle_error_nn = []
 for i in range(len(yaw_matched)):
     angle_error.append(math.degrees(yaw_matched[i] - yaw_gt_matched[i]))
+    if IncludeNatNav:
+        angle_error_nn.append(math.degrees(yaw_nn_matched[i] - yaw_gt_matched[i]))
 
 
 
@@ -259,8 +265,8 @@ print("Estimate errors:")
 print("Max-x: %.3f Max-y: %.3f RMS: %.3f" % (max(abs(errorX))[0],
                                      max(abs(errorY))[0],
                                      rms_error))
-#print(offset)
-print("Max-angle error: %.3f Average-angle error: %.3f" % (max(np.abs(angle_error)),np.mean(angle_error)))
+
+print("Max-angle error: %.3f Average-angle error: %.3f" % (max(np.abs(angle_error)),np.mean(np.mean(angle_error))))
 if IncludeNatNav:
     errorX_nn = nn_arr[:, [0]] - gt_arr[:, [0]]
     errorY_nn = nn_arr[:, [1]] - gt_arr[:, [1]]  
@@ -270,7 +276,7 @@ if IncludeNatNav:
     print("Max-x: %.3f Max-y: %.3f RMS: %.3f" % (max(abs(errorX_nn))[0],
                                         max(abs(errorY_nn))[0],
                                         rms_error_nn))
-
+    print("Max-angle error: %.3f Average-angle error: %.3f" % (max(np.abs(angle_error_nn)),np.mean(np.abs(angle_error_nn))))
 
 
 
@@ -311,7 +317,8 @@ if Plot:
     ax3 = plt.figure().add_subplot()
     ax3.plot(t_matched, yaw_matched, label='Estimated yaw', color="#34a1d4")
     ax3.plot(t_matched, np.unwrap(yaw_gt_matched), label='Ground truth yaw', color="#C72929DA")
-    #ax3.plot(t_matched, angle_error, label='Yaw error')
+    if IncludeNatNav:
+        ax3.plot(t_matched, yaw_nn_matched, label='NatNav error', color="#e49653")
     ax3.set_xlabel('Time')
     ax3.set_ylabel('Angle (radians)')
     ax3.grid(True, linestyle='--', alpha=0.4)
