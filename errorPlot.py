@@ -92,41 +92,63 @@ def associate(first_list, second_list, offset=0, max_difference=1/41,startTime=0
         print(f"[associate] Number of matches: {len(matches)}, number of missing associations: {num_missing_associations}")
         return matches
 
-def roll_from_estimate(qx, qy, qz, qw):
-    num = math.sqrt(1+2*(qw*qy + qx*qz))
-    den = math.sqrt(1-2*(qw*qy + qx*qz))
-    return -math.pi/2+2*math.atan2(num, den)
+def yaw_from_cv_quaternion(qx, qy, qz, qw):
 
+    # Correct CV->NED quaternion:
+    cx, cy, cz, cw = 0.5, 0.5, 0.5, 0.5
+
+    # Quaternion multiplication: q_ned = q_cv_to_ned ⊗ q_cv
+    rx = cw*qx + cx*qw + cy*qz - cz*qy
+    ry = cw*qy - cx*qz + cy*qw + cz*qx
+    rz = cw*qz + cx*qy - cy*qx + cz*qw
+    rw = cw*qw - cx*qx - cy*qy - cz*qz
+
+    # Yaw extraction for NED (clockwise-positive!)
+    siny = 2 * (rw*rz + rx*ry)
+    cosy = 1 - 2 * (ry*ry + rz*rz)
+    return math.atan2(siny, cosy)
+
+def quat_to_R(qx, qy, qz, qw):
+    return np.array([
+        [1-2*qy*qy-2*qz*qz, 2*qx*qy-2*qz*qw, 2*qx*qz+2*qy*qw],
+        [2*qx*qy+2*qz*qw, 1-2*qx*qx-2*qz*qz, 2*qy*qz-2*qx*qw],
+        [2*qx*qz-2*qy*qw, 2*qy*qz+2*qx*qw, 1-2*qx*qx-2*qy*qy]
+    ])
 
 #### Parameters to change ####
 Plot = True
 IncludeNatNav = False #Avalible for Dynamic, Spare and Ceiling
-offset = np.array([0.0,0.0,0.0])
+offset = np.array([0.17,0,-0.1])
 test_name = "LoopTest" #LoopTest, Dynamic, Sparse, Ceiling
-time_offset = 2.78 #2.78 for LoopTest, 5.0 for Dynamic
-
+time_offset = 2.78 #2.78 for LoopTest, 5.0 for Dynamic, 3.0 for Sparse
+startTime = 0.0
 
 
 #### Main Code ####
 estimation = open("/home/albincederberg/pyslam/results/"+test_name+"/trajectory_online.txt", "r", encoding="utf-8")
 gt = open("/home/albincederberg/Videos/LidarData/"+test_name, "r", encoding="utf-8")
-t, x, z ,yaw = [], [], [], []
+t, x, y, z, qx, qy, qz, qw, yaw = [], [], [], [], [], [], [], [], []
 t_gt, x_gt, y_gt, yaw_gt = [], [], [], []
 t_nn, x_nn, y_nn = [], [], []
 
 #Read estimate data
 data = estimation.read()
 lines = data.split("\n")
-lines.pop(-1)
+#lines.pop(-1)
 
 #Estimate, given in TUM format [t,x,y,z,qx,qy,qz,qw]
 for line in lines:
         vals = line.split(" ")
         t.append(float(vals[0]))
         x.append(float(vals[1]))
+        y.append(float(vals[2]))
         z.append(float(vals[3]))
-        yaw.append(-roll_from_estimate(float(vals[4]), float(vals[5]), float(vals[6]), float(vals[7])))
-
+        qx.append(float(vals[4]))
+        qy.append(float(vals[5]))
+        qz.append(float(vals[6]))
+        qw.append(float(vals[7]))
+        yaw.append(-yaw_from_cv_quaternion(float(vals[4]), float(vals[5]), float(vals[6]), float(vals[7])))
+yaw = np.unwrap(yaw)
 
 data_gt = gt.read()
 lines_gt = data_gt.split("\n")
@@ -174,11 +196,11 @@ else: #Read GT data and NatNav data
         if "state" in line_nn and float(vals[1]) in aligned:
             x_nn.append(float(vals[2]))
             y_nn.append(float(vals[3]))
+yaw_gt = np.unwrap(yaw_gt)
 
 
 
-
-matches  = associate(t, aligned, offset=time_offset, max_difference=1/41,startTime=0) 
+matches  = associate(t, aligned, offset=time_offset, max_difference=1/41,startTime=startTime) 
 est_matches = []
 gt_matches = []
 nn_matches = []
@@ -191,14 +213,17 @@ for i in matches:
     j  = matches[i][1]
     yaw_matched.append(yaw[i])
     yaw_gt_matched.append(yaw_gt[j])
-    x_corr = offset[0] * math.sin(yaw[i]) + offset[2] * math.cos(yaw[i]) #Corrections
-    z_corr = offset[0] * math.cos(yaw[i]) - offset[2] * math.sin(yaw[i])
-    est_matches.append([x[i]+x_corr, 0.0, z[i]+z_corr])    # estimated
+    #x_corr = offset[0] * math.cos(yaw[i]) - offset[2] * math.sin(yaw[i]) #Corrections
+    #z_corr = offset[0] * math.sin(yaw[i]) + offset[2] * math.cos(yaw[i])
+    #est_matches.append([x[i]+x_corr, 0.0, z[i]+z_corr])    # estimated
     gt_matches.append([x_gt[j], y_gt[j], 0.0])  # ground truth
     t_matched.append(matches[i][2])
     if IncludeNatNav:
         nn_matches.append([x_nn[j], y_nn[j], 0.0])  # NatNav
-    
+    t_cam = np.array([x[i], y[i], z[i]])
+    R = quat_to_R(qx[i], qy[i], qz[i], qw[i])
+    t_agv = t_cam + R @ offset
+    est_matches.append([t_agv[2],-t_agv[0], 0]) 
 
 est_arr = np.asarray(est_matches, dtype=float)
 gt_arr  = np.asarray(gt_matches, dtype=float)
@@ -220,20 +245,21 @@ rms_error = np.sqrt(np.mean(np.power(traj_dists, 2)))
 #Convert yaw to be continuous and start at 0
 yaw_matched_converted = []
 start_angle = yaw_gt_matched[0]
-for angle in yaw_gt_matched:
-    yaw_matched_converted.append(math.asin(math.sin(angle - start_angle)))
+yaw_matched = np.array(yaw_matched)- yaw_matched[0]
+yaw_gt_matched = np.array(yaw_gt_matched)- yaw_gt_matched[0]
 
 #Calculates the angle error in degrees
 angle_error = []
 for i in range(len(yaw_matched)):
-    angle_error.append(math.degrees(yaw_matched[i] - yaw_matched_converted[i]))
-    #angle_error.append(yaw_matched[i] - yaw_matched_converted[i])
+    angle_error.append(math.degrees(yaw_matched[i] - yaw_gt_matched[i]))
+
 
 
 print("Estimate errors:")
 print("Max-x: %.3f Max-y: %.3f RMS: %.3f" % (max(abs(errorX))[0],
                                      max(abs(errorY))[0],
                                      rms_error))
+#print(offset)
 print("Max-angle error: %.3f Average-angle error: %.3f" % (max(np.abs(angle_error)),np.mean(angle_error)))
 if IncludeNatNav:
     errorX_nn = nn_arr[:, [0]] - gt_arr[:, [0]]
@@ -249,7 +275,6 @@ if IncludeNatNav:
 
 
 ####Plotting####
-plt.close("all")
 if Plot:
 
     fig, ax = plt.subplots(figsize=(7, 6))  # 2D axes
@@ -260,9 +285,11 @@ if Plot:
     if IncludeNatNav:
         ax.plot(nn_arr[:, 0],  nn_arr[:, 1],  label='NatNav trajectory', color="#e49653", linestyle='--')
 
-    ax.set_aspect('equal', adjustable='box')  # keep metric aspect ratio
-    ax.set_xlabel('Y')
-    ax.set_ylabel('X')
+    if test_name != "Sparse" and test_name != "Ceiling":
+        ax.set_aspect('equal', adjustable='box')  # keep metric aspect ratio
+        
+    ax.set_xlabel('X')
+    ax.set_ylabel('Y')
     ax.set_title('Trajectories (2D)')
     ax.grid(True, linestyle='--', alpha=0.4)
     ax.legend()
@@ -278,14 +305,15 @@ if Plot:
     ax2.set_xlabel('Time')
     ax2.set_ylabel('Error')
     ax2.set_title('Trajectory error over time')
+    ax2.grid(True, linestyle='--', alpha=0.4)
     ax2.legend()
-    plt.ylim(0, 0.7)
 
     ax3 = plt.figure().add_subplot()
     ax3.plot(t_matched, yaw_matched, label='Estimated yaw', color="#34a1d4")
-    ax3.plot(t_matched, yaw_matched_converted, label='Ground truth yaw', color="#C72929DA")
+    ax3.plot(t_matched, np.unwrap(yaw_gt_matched), label='Ground truth yaw', color="#C72929DA")
     #ax3.plot(t_matched, angle_error, label='Yaw error')
     ax3.set_xlabel('Time')
     ax3.set_ylabel('Angle (radians)')
+    ax3.grid(True, linestyle='--', alpha=0.4)
     ax3.legend()
     plt.show()
