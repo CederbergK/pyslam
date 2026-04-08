@@ -41,7 +41,7 @@ class Parameters:
     # ================================================================
     # C++ core
     # ================================================================
-    USE_CPP_CORE = False  # True: use the C++ core; False: use the Python core
+    USE_CPP_CORE = True  # True: use the C++ core; False: use the Python core
 
     # ================================================================
     # Logs
