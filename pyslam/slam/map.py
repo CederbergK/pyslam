@@ -405,12 +405,26 @@ class Map(object):
                 else:
                     for i, p in enumerate(sel_points):
                         pts[i] = p.pt()
-                        cols_rgb[i] = p.color
+                        
+                        if Parameters.weight_plot:
+                            if p.weight < 1:
+                                cols_rgb[i] = [1.0, 0.0, 0.0]  # red
+                            elif p.weight == 1:
+                                cols_rgb[i] = [0.0, 1.0, 0.0]  # green
+                            else:
+                                cols_rgb[i] = [0.0, 0.0, 1.0]  # blue 
+                        else:
+                            cols_rgb[i] = p.color
+
             except Exception as e:
                 Printer.red(f"Viewer3D: draw_slam_map - error: {e}")
 
             map_state.points = pts
-            map_state.colors = cols_rgb[:, ::-1] / 255.0  # BGR -> RGB and normalize
+            if Parameters.weight_plot:
+                map_state.colors = cols_rgb 
+            else:
+                map_state.colors = cols_rgb[:, ::-1] / 255.0  # BGR -> RGB and normalize
+
             map_state.semantic_colors = (
                 sem_colors / 255.0 if is_semantic_mapping_active else sem_colors
             )
