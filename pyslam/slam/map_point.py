@@ -357,6 +357,9 @@ class MapPoint(MapPointBase):
         self.kf_ref = keyframe
         self.first_kid = -1  # first observation keyframe id
 
+        # Added by Viktor
+        self.weight = 1.0
+
         if keyframe is not None:
             if keyframe.is_keyframe:
                 self.first_kid = keyframe.kid
