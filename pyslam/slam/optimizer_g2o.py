@@ -452,6 +452,7 @@ def pose_optimization(frame, verbose=False, rounds=10):
             # add edge
             edge = None
             invSigma2 = inv_level_sigmas2[frame.octaves[idx]]
+            w = p.weight
 
             if Parameters.kUseSemanticsInOptimization and frame.kps_sem is not None:
                 invSigma2 *= SemanticMappingShared.get_semantic_weight(frame.kps_sem[idx])
@@ -463,7 +464,7 @@ def pose_optimization(frame, verbose=False, rounds=10):
                 edge.set_vertex(0, v_se3)  # opt.vertex(0))
                 edge.set_measurement(obs)
 
-                edge.set_information(eye3 * invSigma2)
+                edge.set_information(eye3 * invSigma2 * w)
                 edge.set_robust_kernel(g2o.RobustKernelHuber(thHuberStereo))
 
                 edge.fx = fx
