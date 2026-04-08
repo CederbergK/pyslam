@@ -421,13 +421,13 @@ PoseOptimizationResult OptimizerG2o::pose_optimization(FramePtr &frame, bool ver
 
             // Get inverse sigma squared
             const double invSigma2 = inv_level_sigmas2[octaves[idx]];
-
+            double w = p->weight();
             if (is_stereo_obs) {
                 auto *edge = new g2o::EdgeStereoSE3ProjectXYZOnlyPose();
                 Eigen::Vector3d obs_vec(kpu.x(), kpu.y(), kps_ur[idx]);
                 edge->setVertex(0, vertex_se3);
                 edge->setMeasurement(obs_vec);
-                edge->setInformation(Eigen::Matrix3d::Identity() * invSigma2);
+                edge->setInformation(Eigen::Matrix3d::Identity() * invSigma2 * w);
 
                 auto *robust_kernel = new g2o::RobustKernelHuber();
                 robust_kernel->setDelta(Parameters::kThHuberStereo);
