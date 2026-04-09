@@ -428,6 +428,7 @@ Map::get_data_arrays_for_drawing(const std::size_t max_points_to_visualize,
                 color_rgb << static_cast<float>(p->color[2]) / 255.0f, // R
                     static_cast<float>(p->color[1]) / 255.0f,          // G
                     static_cast<float>(p->color[0]) / 255.0f;          // B
+                //color_rgb << 1.0f, 0.0f, 0.0f;
                 colors.push_back(color_rgb);
 
                 // No semantic colors
