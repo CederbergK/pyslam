@@ -480,7 +480,7 @@ def pose_optimization(frame, verbose=False, rounds=10):
                 edge.set_vertex(0, v_se3)  # opt.vertex(0))
                 edge.set_measurement(frame_kpsu_idx)
 
-                edge.set_information(eye2 * invSigma2)
+                edge.set_information(eye2 * invSigma2 * w)
                 edge.set_robust_kernel(g2o.RobustKernelHuber(thHuberMono))
 
                 edge.fx = fx
@@ -682,7 +682,7 @@ def local_bundle_adjustment(
 
     # add point vertices to graph
     # for p in points:
-    for p in good_points:
+    for p in good_points: #Som också är mutable!
 
         # assert(p is not None)
         # if p.is_bad():  # do not consider bad points
