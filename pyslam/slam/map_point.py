@@ -359,6 +359,7 @@ class MapPoint(MapPointBase):
 
         # Added by Viktor
         self.weight = 1.0
+        self.is_mutable = False  # Default value
 
         if keyframe is not None:
             if keyframe.is_keyframe:

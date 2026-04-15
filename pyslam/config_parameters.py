@@ -34,14 +34,15 @@ class Parameters:
     # ================================================================
     # Parmeters added by us
     # ================================================================
-    camera_offset = np.array([0.15, 0.0, -0.1])
-    time_offset = 2.5
-    weight_plot = True
+    camera_offset = np.array([0.17, 0.0, -0.1])
+    time_offset = 2.78  # Loop 2.78, Dynamic: 5.0, Sparse: 3.0
+    weight_plot = False  # Not connected to CPP core yet!
+    plot_mutable_points = True  # Not connected to CPP core yet!
 
     # ================================================================
     # C++ core
     # ================================================================
-    USE_CPP_CORE = True  # True: use the C++ core; False: use the Python core
+    USE_CPP_CORE = False  # True: use the C++ core; False: use the Python core
 
     # ================================================================
     # Logs

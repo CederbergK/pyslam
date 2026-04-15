@@ -428,6 +428,11 @@ def _search_map_by_projection(
     # check if points are visible
     visibility_flags, projs, depths, dists = f_cur.are_visible(points)
 
+    visible_points = [
+    p for i, p in enumerate(points)
+    if visibility_flags[i] and not p.is_bad()
+    ]
+
     predicted_levels = MapPoint.predict_detection_levels(points, dists)
     kp_scale_factors = FeatureTrackerShared.feature_manager.scale_factors[predicted_levels]
     radiuses = max_reproj_distance * kp_scale_factors
@@ -450,6 +455,8 @@ def _search_map_by_projection(
     cur_des = f_cur.des
     cur_octaves = f_cur.octaves
     cur_points = f_cur.points
+
+    matched_points = []
 
     for i, p in idxs_and_pts:
         p.increase_visible()
@@ -497,13 +504,14 @@ def _search_map_by_projection(
                 found_pts_count += 1
                 found_pts_fidxs.append(best_k_idx)
 
+                matched_points.append(p)
+
             # reproj_dists.append(np.linalg.norm(projs[i] - f_cur.kpsu[best_k_idx]))
 
     # if len(reproj_dists) > 1:
     #     reproj_dist_sigma = 1.4826 * np.median(reproj_dists)
 
-    return found_pts_count, found_pts_fidxs
-
+    return found_pts_count, found_pts_fidxs, visible_points, matched_points
 
 # search by projection matches between {map points of last frames} and {unmatched keypoints of f_cur}, (access frame from tracking thread, no need to lock)
 def _search_local_frames_by_projection(
