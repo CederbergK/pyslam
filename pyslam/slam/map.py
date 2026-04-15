@@ -407,12 +407,17 @@ class Map(object):
                         pts[i] = p.pt()
                         
                         if Parameters.weight_plot:
-                            if p.weight < 1:
+                            if p.weight < 0.4:
                                 cols_rgb[i] = [1.0, 0.0, 0.0]  # red
-                            elif p.weight == 1:
+                            elif p.weight >= 0.4 and p.weight < 0.7:
                                 cols_rgb[i] = [0.0, 1.0, 0.0]  # green
                             else:
                                 cols_rgb[i] = [0.0, 0.0, 1.0]  # blue 
+                        elif Parameters.plot_mutable_points:
+                            if p.is_mutable:
+                                cols_rgb[i] = [1.0, 0.0, 0.0]  # red
+                            else:
+                                cols_rgb[i] = [0.0, 1.0, 0.0]  # green
                         else:
                             cols_rgb[i] = p.color
 
@@ -420,7 +425,7 @@ class Map(object):
                 Printer.red(f"Viewer3D: draw_slam_map - error: {e}")
 
             map_state.points = pts
-            if Parameters.weight_plot:
+            if Parameters.weight_plot or Parameters.plot_mutable_points:
                 map_state.colors = cols_rgb 
             else:
                 map_state.colors = cols_rgb[:, ::-1] / 255.0  # BGR -> RGB and normalize

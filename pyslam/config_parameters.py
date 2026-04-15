@@ -35,8 +35,9 @@ class Parameters:
     # Parmeters added by us
     # ================================================================
     camera_offset = np.array([0.17, 0.0, -0.1])
-    time_offset = 2.78
-    weight_plot = True
+    time_offset = 2.78  # Loop 2.78, Dynamic: 5.0, Sparse: 3.0
+    weight_plot = False  # Not connected to CPP core yet!
+    plot_mutable_points = True  # Not connected to CPP core yet!
 
     # ================================================================
     # C++ core

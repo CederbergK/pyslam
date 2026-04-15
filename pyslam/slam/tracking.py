@@ -689,7 +689,7 @@ class Tracking:
             self.reproj_err_frame_map_sigma = Parameters.kMaxReprojectionDistanceMapReloc
 
         # use the updated local map to search for matches between {local map points} and {unmatched keypoints of f_cur}
-        num_found_map_pts, matched_points_frame_idxs = ProjectionMatcher.search_map_by_projection(
+        num_found_map_pts, matched_points_frame_idxs, visible_points, matched_points = ProjectionMatcher.search_map_by_projection(
             self.local_points,
             f_cur,
             max_reproj_distance=self.reproj_err_frame_map_sigma,
@@ -698,6 +698,15 @@ class Tracking:
             far_points_threshold=self.far_points_threshold,
         )
         self.timer_seach_map.refresh()
+
+        matched_set = set(matched_points)
+        if Parameters.weight_plot:
+            for p in visible_points:
+                if p in matched_set:
+                    p.weight = min(p.weight + 0.01, 1.0)
+                else:
+                    p.weight = max(p.weight - 0.001, 0.1)
+
         # print('reproj_err_sigma: ', reproj_err_frame_map_sigma, ' used: ', self.reproj_err_frame_map_sigma)
         print(
             f"# matched map points in local map: {num_found_map_pts}, perc%: {100*num_found_map_pts/len(self.local_points):.2f}"
