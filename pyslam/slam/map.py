@@ -766,6 +766,7 @@ class Map(object):
 
             # add the point to this map
             mp = MapPoint(p[0:3], color, kf2, idx2_i)
+            mp.is_mutable = not Parameters.kEnableLocalMapping
             self.add_point(mp)  # add point to this map
             mp.add_observation(kf1, idx1_i)
             mp.add_observation(kf2, idx2_i)
@@ -808,6 +809,7 @@ class Map(object):
 
             # we need to add the point both the originary frame and the newly created keyframe
             f.points[idxs[i]] = mp  # add point to the frame
+            mp.is_mutable = not Parameters.kEnableLocalMapping
             self.add_point(mp)  # add point to this map
             mp.add_observation(kf, idxs[i])
             mp.update_info()

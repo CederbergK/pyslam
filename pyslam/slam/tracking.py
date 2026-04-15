@@ -728,7 +728,7 @@ class Tracking:
         # here we reset outliers only in the case of STEREO; in other cases,
         # we let them reach the keyframe generation and then bundle adjustment will possible decide if remove them or not;
         # only after keyframe generation the outliers are cleaned!
-        self.num_matched_map_points = f_cur.update_map_points_statistics(self.sensor_type)
+        self.num_matched_map_points, self.matched_static_points = f_cur.update_map_points_statistics(self.sensor_type)
 
         # print('     # num_matched_points: %d' % (self.num_matched_map_points) )
         if (
@@ -947,11 +947,10 @@ class Tracking:
         )  # add kf_cur to map (moved from local_mapping.py to this point)
         # NOTE: This is done here since a new keyframe-id (kid) is assigned when adding to map
 
-        if self.sensor_type != SensorType.MONOCULAR and Parameters.kEnableLocalMapping: #The tracking module also creates map poins, this condition can prevent this. If points are made here without local maping running, duplicates will be introduced in the map.
+        if self.sensor_type != SensorType.MONOCULAR:
             self.create_and_add_stereo_map_points_on_new_kf(f_cur, kf_new, img)
 
-        if Parameters.kEnableLocalMapping: #This condition can prevent the entire local mapping module from running. This requiers a loaded map to work.
-            self.local_mapping.push_keyframe(kf_new, img, img_right, depth)
+        self.local_mapping.push_keyframe(kf_new, img, img_right, depth)
 
         self.local_mapping.set_do_not_stop(False)
 
@@ -1090,6 +1089,9 @@ class Tracking:
                 )
             self.poses.append(poseRt(self.cur_R, p))
             self.pose_timestamps.append(f_cur.timestamp)
+
+    def cull_mutable_map_points(self):
+        return  # NOTE: En dummy funktion för tillfället
 
     # @ main track method @
     def track(self, img, img_right, depth, img_id, timestamp=None):
@@ -1355,11 +1357,9 @@ class Tracking:
             # find matches between {local map points} (points in the local map) and {unmatched keypoints of f_cur}
             if self.pose_is_ok:
                 self.track_local_map(f_cur)
-            #Funktion som separerar statiska och dynamiska punkter i matchningen
-            self.matched_static_points = self.num_matched_map_points #Behövs mer här för att ta bort
-            #self.matched_mutable_points = self.num_matched_map_points - self.matched_static_points
+            print("MATCHED MAP POINTS:", self.num_matched_map_points)
+            print("STATIC:",self.matched_static_points,"MUTABLE:", self.num_matched_map_points-self.matched_static_points)
 
-            print(f"visible static points after tracking local map!!!!!!!!!!!!!!!!!!!: {self.matched_static_points}")
             # update slam state
             if self.pose_is_ok:
                 self.state = SlamState.OK
@@ -1384,13 +1384,21 @@ class Tracking:
                 f_cur.clean_vo_matches()  # clean VO matches
                 self.clean_vo_points()  # clean VO points
 
-                # do we need a new KeyFrame?
-                if Parameters.kEnableLocalMapping:
+                if Parameters.kEnableLocalMapping: #Mapping mode
                     need_new_kf = self.need_new_keyframe(f_cur)
-                else:
-                    print("DYNAMIC MODE")
-                    need_new_kf = (self.matched_static_points < Parameters.kStaticThreshold)
 
+                else: #Criteria to switch between Localization and Dynamic mode
+                    condStatic = self.matched_static_points < Parameters.kStaticThreshold
+                    condDynamic = self.num_matched_map_points < Parameters.kDynamicThreshold
+                    
+                    if condStatic or condDynamic: #Dynamic
+                        condTime = (f_cur.id >= (self.kf_last.id + self.min_frames_between_kfs)) and self.local_mapping.is_idle()
+                        need_new_kf = condTime
+
+                    else: #Localization
+                        self.cull_mutable_map_points()
+                        need_new_kf = False
+                        
                 if need_new_kf:
                     Printer.bold_cyan("NEW KF")
                     self.create_new_keyframe(f_cur, img, img_right, depth)
