@@ -682,7 +682,7 @@ def local_bundle_adjustment(
 
     # add point vertices to graph
     # for p in points:
-    for p in good_points:
+    for p in good_points: #Som också är mutable!
 
         # assert(p is not None)
         # if p.is_bad():  # do not consider bad points

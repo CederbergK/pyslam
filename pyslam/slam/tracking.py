@@ -32,6 +32,7 @@ import cv2
 import g2o
 
 from pyslam.config_parameters import Parameters
+#from slam.local_mapping import LocalMapping
 
 from .frame import match_frames
 from .feature_tracker_shared import FeatureTrackerShared
@@ -190,6 +191,8 @@ class Tracking:
         self.num_kf_ref_tracked_points = (
             None  # number of tracked points in k_ref (considering a minimum number of observations)
         )
+        self.matched_static_points = Parameters.kNumFeatures
+        self.matched_mutable_points = 0
 
         self.last_num_static_stereo_map_points = None
         self.total_num_static_stereo_map_points = 0
@@ -1352,7 +1355,11 @@ class Tracking:
             # find matches between {local map points} (points in the local map) and {unmatched keypoints of f_cur}
             if self.pose_is_ok:
                 self.track_local_map(f_cur)
+            #Funktion som separerar statiska och dynamiska punkter i matchningen
+            self.matched_static_points = self.num_matched_map_points #Behövs mer här för att ta bort
+            #self.matched_mutable_points = self.num_matched_map_points - self.matched_static_points
 
+            print(f"visible static points after tracking local map!!!!!!!!!!!!!!!!!!!: {self.matched_static_points}")
             # update slam state
             if self.pose_is_ok:
                 self.state = SlamState.OK
@@ -1378,7 +1385,11 @@ class Tracking:
                 self.clean_vo_points()  # clean VO points
 
                 # do we need a new KeyFrame?
-                need_new_kf = self.need_new_keyframe(f_cur)
+                if Parameters.kEnableLocalMapping:
+                    need_new_kf = self.need_new_keyframe(f_cur)
+                else:
+                    print("DYNAMIC MODE")
+                    need_new_kf = (self.matched_static_points < Parameters.kStaticThreshold)
 
                 if need_new_kf:
                     Printer.bold_cyan("NEW KF")
@@ -1386,26 +1397,16 @@ class Tracking:
                     print(
                         f"New keyframe created: {f_cur.id}, local_mapping_queue_size: {self.local_mapping.queue_size()}"
                     )
-                # else:
-                #     Printer.yellow('NOT KF')
+                # Clean outliers once keyframe generation has been managed: we allow points with high innovation (considered outliers by the Huber Function)pass to the new keyframe, 
+                # so that bundle adjustment will finally decideif they are outliers or not. We don't want next frame to estimate its positionwith those points so we discard them in the frame.
+                    f_cur.clean_outlier_map_points()
 
-                # Similar to ORBSLAM2:
-                # Clean outliers once keyframe generation has been managed:
-                # we allow points with high innovation (considered outliers by the Huber Function)
-                # pass to the new keyframe, so that bundle adjustment will finally decide
-                # if they are outliers or not. We don't want next frame to estimate its position
-                # with those points so we discard them in the frame.
-                f_cur.clean_outlier_map_points()
-
-                if need_new_kf:
-                    if not Parameters.kLocalMappingOnSeparateThread:
-                        self.local_mapping.is_running = True
-                        while self.local_mapping.queue_size() > 0:
-                            self.local_mapping.step()
-                            for kf in self.map.local_map.get_keyframes():
-                                kf.update_connections()
-                            # if self.kf_ref is not None:
-                            #     self.map.local_map.update(self.kf_ref)
+                if not Parameters.kLocalMappingOnSeparateThread:
+                    self.local_mapping.is_running = True
+                    while self.local_mapping.queue_size() > 0:
+                        self.local_mapping.step()
+                        for kf in self.map.local_map.get_keyframes():
+                            kf.update_connections()
 
         # end block {with self.map.update_lock:}
 
