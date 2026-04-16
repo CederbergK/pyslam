@@ -697,6 +697,12 @@ def local_bundle_adjustment(
         v_p.set_id(p.id * 2 + 1)  # odd ids
         v_p.set_estimate(p.pt()[0:3].copy())
         v_p.set_marginalized(True)
+        if Parameters.kEnableLocalMapping:  # Points not static in mapping mode
+            fixed_points = False
+        elif not p.is_mutable:  # Loaded points from map should be static
+            fixed_points = True
+        elif p.is_mutable:  # Want to optimize mutable points
+            fixed_points = False
         v_p.set_fixed(fixed_points)
         opt.add_vertex(v_p)
         graph_points[p] = v_p

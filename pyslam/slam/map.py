@@ -806,6 +806,7 @@ class Map(object):
 
             # add the point to this map
             mp = MapPoint(p[0:3], color, kf, idxs[i])
+            mp.is_mutable = True
 
             # we need to add the point both the originary frame and the newly created keyframe
             f.points[idxs[i]] = mp  # add point to the frame
