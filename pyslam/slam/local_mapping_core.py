@@ -134,20 +134,21 @@ class LocalMappingCore:
         current_kid = self.kf_cur.kid
         remove_set = set()
         for p in self.recently_added_points:
-            if p.is_bad():
-                remove_set.add(p)
-            elif p.get_found_ratio() < min_found_ratio:
-                p.set_bad()
-                self.map.remove_point(p)
-                remove_set.add(p)
-            elif (current_kid - p.first_kid) >= 2 and p.num_observations() <= th_num_observations:
-                p.set_bad()
-                self.map.remove_point(p)
-                remove_set.add(p)
-            elif (
-                current_kid - p.first_kid
-            ) >= 3:  # after three keyframes we do not consider the point a recent one
-                remove_set.add(p)
+            if p.is_mutable:
+                if p.is_bad():
+                    remove_set.add(p)
+                elif p.get_found_ratio() < min_found_ratio:
+                    p.set_bad()
+                    self.map.remove_point(p)
+                    remove_set.add(p)
+                elif (current_kid - p.first_kid) >= 2 and p.num_observations() <= th_num_observations:
+                    p.set_bad()
+                    self.map.remove_point(p)
+                    remove_set.add(p)
+                elif (
+                    current_kid - p.first_kid
+                ) >= 3:  # after three keyframes we do not consider the point a recent one
+                    remove_set.add(p)
         self.recently_added_points = self.recently_added_points - remove_set
         num_culled_points = len(remove_set)
         return num_culled_points

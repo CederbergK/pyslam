@@ -1440,6 +1440,11 @@ class Tracking:
         Printer.green(
             "map: %d points, %d keyframes" % (self.map.num_points(), self.map.num_keyframes())
         )
+        Printer.green(
+            "Static points: %d, Mutable points: %d"
+            % self.map.num_static_points()
+        )
+
         # self.update_history()
 
         self.timer_main_track.refresh()
