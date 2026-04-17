@@ -973,6 +973,7 @@ class Frame(FrameBase):
     def update_map_points_statistics(self, sensor_type=SensorType.MONOCULAR):
         num_matched_inlier_points = 0
         num_matched_inlier_static_points = 0
+        num_matched_inlier_mutable_points = 0
         with self._lock_features:
             for i, p in enumerate(self.points):
                 if p is not None:
@@ -982,9 +983,11 @@ class Frame(FrameBase):
                             num_matched_inlier_points += 1
                             if p.is_mutable == False:
                                 num_matched_inlier_static_points += 1
+                            else:
+                                num_matched_inlier_mutable_points += 1
                     elif sensor_type == SensorType.STEREO:
                         self.points[i] = None
-        return num_matched_inlier_points, num_matched_inlier_static_points
+        return num_matched_inlier_points, num_matched_inlier_static_points, num_matched_inlier_mutable_points
 
     # reset outliers detected in last pose optimization
     def clean_outlier_map_points(self):

@@ -191,8 +191,10 @@ class Tracking:
         self.num_kf_ref_tracked_points = (
             None  # number of tracked points in k_ref (considering a minimum number of observations)
         )
-        self.matched_static_points = Parameters.kNumFeatures
-        self.matched_mutable_points = 0
+        self.num_matched_static_points = Parameters.kNumFeatures
+        self.num_matched_mutable_points = 0
+        self.visible_points = []
+        self.dynamicMode = False
 
         self.last_num_static_stereo_map_points = None
         self.total_num_static_stereo_map_points = 0
@@ -699,6 +701,7 @@ class Tracking:
         )
         self.timer_seach_map.refresh()
 
+        self.visible_points = visible_points
         matched_set = set(matched_points)
         if Parameters.weight_plot:
             for p in visible_points:
@@ -728,7 +731,7 @@ class Tracking:
         # here we reset outliers only in the case of STEREO; in other cases,
         # we let them reach the keyframe generation and then bundle adjustment will possible decide if remove them or not;
         # only after keyframe generation the outliers are cleaned!
-        self.num_matched_map_points, self.matched_static_points = f_cur.update_map_points_statistics(self.sensor_type)
+        self.num_matched_map_points, self.num_matched_static_points, self.num_matched_mutable_points = f_cur.update_map_points_statistics(self.sensor_type)
 
         # print('     # num_matched_points: %d' % (self.num_matched_map_points) )
         if (
@@ -1090,9 +1093,41 @@ class Tracking:
             self.poses.append(poseRt(self.cur_R, p))
             self.pose_timestamps.append(f_cur.timestamp)
 
-    def cull_mutable_map_points(self):
-        return  # NOTE: En dummy funktion för tillfället
-
+    def cull_bad_mutable_map_points(self):
+        num_culled = 0
+        for p in self.visible_points:
+            if p.is_mutable:
+                self.local_mapping.map.remove_point(p)
+                num_culled += 1
+        print(f"Culled {num_culled} mutable map points.")
+    
+    def need_new_keyframe_dynamic(self,f_cur):
+        visible_static_points = [p for p in self.visible_points if p.is_mutable==False]
+        occlusion = (self.num_matched_map_points/len(visible_static_points))
+        clutter = self.num_matched_mutable_points / self.num_matched_map_points
+        print(f"Occlusion: {occlusion:.2f}")
+        print(f"Clutter: {clutter:.2f}")
+        if self.dynamicMode:#Dynamic
+            if f_cur.id >= (self.kf_last.id + 10):
+                if occlusion < Parameters.kStaticThreshold:
+                    need_new_kf = True
+                else:
+                    self.dynamicMode = False
+                    need_new_kf = False
+            else:
+                need_new_kf = False
+        else: #Localization
+            if occlusion < Parameters.kStaticThreshold:
+                self.dynamicMode = True
+                need_new_kf = True      
+            elif clutter > Parameters.kMutableThreshold:
+                Printer.red(f"Clutter: {clutter:.2f}")   
+                self.cull_bad_mutable_map_points()
+                need_new_kf = False
+            else:
+                need_new_kf = False
+        return need_new_kf
+    
     # @ main track method @
     def track(self, img, img_right, depth, img_id, timestamp=None):
         Printer.cyan(
@@ -1357,8 +1392,6 @@ class Tracking:
             # find matches between {local map points} (points in the local map) and {unmatched keypoints of f_cur}
             if self.pose_is_ok:
                 self.track_local_map(f_cur)
-            print("MATCHED MAP POINTS:", self.num_matched_map_points)
-            print("STATIC:",self.matched_static_points,"MUTABLE:", self.num_matched_map_points-self.matched_static_points)
 
             # update slam state
             if self.pose_is_ok:
@@ -1388,16 +1421,7 @@ class Tracking:
                     need_new_kf = self.need_new_keyframe(f_cur)
 
                 else: #Criteria to switch between Localization and Dynamic mode
-                    condStatic = self.matched_static_points < Parameters.kStaticThreshold
-                    condDynamic = self.num_matched_map_points < Parameters.kDynamicThreshold
-                    
-                    if condStatic or condDynamic: #Dynamic
-                        condTime = (f_cur.id >= (self.kf_last.id + self.min_frames_between_kfs)) and self.local_mapping.is_idle()
-                        need_new_kf = condTime
-
-                    else: #Localization
-                        self.cull_mutable_map_points()
-                        need_new_kf = False
+                    need_new_kf = self.need_new_keyframe_dynamic(f_cur)
                         
                 if need_new_kf:
                     Printer.bold_cyan("NEW KF")

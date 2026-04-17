@@ -35,7 +35,7 @@ class Parameters:
     # Parmeters added by us
     # ================================================================
     camera_offset = np.array([0.17, 0.0, -0.1])
-    time_offset = 2.78  # Loop 2.78, Dynamic: 5.0, Sparse: 3.0
+    time_offset = 5.0  # Loop 2.78, Dynamic: 5.0, Sparse: 3.0
     weight_plot = False  # Not connected to CPP core yet!
     plot_mutable_points = True  # Not connected to CPP core yet!
 
@@ -59,8 +59,8 @@ class Parameters:
     kEnableLocalMapping = False  # True: enable local mapping, False: completely disable local mapping
     kTrackingWaitForLocalMappingToGetIdle = True  # True: wait for local mapping to get idle before starting tracking, False: tracking and then local mapping in a single thread
     
-    kDynamicThreshold = 900
-    kStaticThreshold = 900
+    kMutableThreshold = 0.05
+    kStaticThreshold = 0.5
     
     kWaitForLocalMappingTimeout = (
         0.5 if not USE_CPP_CORE else 0.05
@@ -70,7 +70,7 @@ class Parameters:
     )  # [s]  # Timeout for parallel LBA process to finish
 
     # Number of desired keypoints per frame
-    kNumFeatures = 2000  # Default number of keypoints (can be overridden by the "settings" file)
+    kNumFeatures = 1000  # Default number of keypoints (can be overridden by the "settings" file)
 
     # Adaptive stats
     kUseDynamicDesDistanceTh = True  # Use dynamic descriptor distance threshold
