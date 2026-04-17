@@ -1444,6 +1444,10 @@ class Tracking:
             "Static points: %d, Mutable points: %d"
             % self.map.num_static_points()
         )
+        Printer.green(
+            "Static points have moved: %d on avarge, and maximum: %d"
+            % self.map.static_points_movement()
+        )
 
         # self.update_history()
 

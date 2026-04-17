@@ -122,6 +122,8 @@ class Map(object):
 
         self.viewer_scale = -1
 
+        self._static_points_prev = {}  # Added by Viktor for debugging static points movement
+
     def is_reloaded(self):
         return self.reloaded_session_map_info is not None
 
@@ -218,6 +220,34 @@ class Map(object):
             static = sum(not p.is_mutable for p in points_copy)
             mutable = sum(p.is_mutable for p in points_copy)
             return static, mutable
+        
+    def static_points_movement(self):  # Temporary method for debugging
+        with self._lock:
+            current_positions = {}
+            new_points = self.points.copy()
+            for p in new_points:
+                if not p.is_mutable:
+                    current_positions[p.id] = np.array(p.pt())
+
+            total_error = 0.0
+            max_error = 0.0
+            count = 0
+
+            for point_id, pos in current_positions.items():
+                if point_id in self._static_points_prev:
+                    prev = self._static_points_prev[point_id]
+                    err = np.linalg.norm(prev - pos)
+                    total_error += err
+                    max_error = max(max_error, err)
+                    count += 1
+
+            self._static_points_prev = current_positions
+
+            if count == 0:
+                return 0.0, 0.0
+
+            mean_error = total_error / count
+            return mean_error, max_error
 
     def get_frame(self, idx):
         with self._lock:
