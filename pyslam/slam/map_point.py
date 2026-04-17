@@ -576,6 +576,8 @@ class MapPoint(MapPointBase):
     def set_bad(self, map_no_lock=False):
         if self._is_bad:
             return
+        if not self.is_mutable:
+            return
         with self._lock_features:
             with self._lock_pos:
                 self._is_bad = True
@@ -602,6 +604,8 @@ class MapPoint(MapPointBase):
     # replace this point with map point p
     def replace_with(self, p: "MapPoint"):
         if p.id == self.id:
+            return
+        if not self.is_mutable:
             return
         # if __debug__:
         #    Printer.orange('replacing ', self, ' with ', p)

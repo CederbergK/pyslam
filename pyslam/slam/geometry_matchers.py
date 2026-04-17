@@ -810,6 +810,8 @@ def _search_and_fuse(
             p_keyframe = keyframe.get_point_match(best_kd_idx)
             # if there is already a map point replace it otherwise add a new point
             if p_keyframe is not None:
+                if not p.is_mutable or not p_keyframe.is_mutable:
+                    continue
                 # if not p_keyframe.is_bad():
                 #     if p_keyframe.num_observations() > p.num_observations():
                 #         p.replace_with(p_keyframe)

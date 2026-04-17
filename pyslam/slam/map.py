@@ -211,6 +211,13 @@ class Map(object):
     def num_points(self):
         with self._lock:
             return len(self.points)
+        
+    def num_static_points(self):  # Temporary method for debugging
+        with self._lock:
+            points_copy = self.points.copy()
+            static = sum(not p.is_mutable for p in points_copy)
+            mutable = sum(p.is_mutable for p in points_copy)
+            return static, mutable
 
     def get_frame(self, idx):
         with self._lock:
