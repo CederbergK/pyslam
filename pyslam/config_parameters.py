@@ -59,7 +59,7 @@ class Parameters:
     kEnableLocalMapping = False  # True: enable local mapping, False: completely disable local mapping
     kTrackingWaitForLocalMappingToGetIdle = True  # True: wait for local mapping to get idle before starting tracking, False: tracking and then local mapping in a single thread
     
-    kMutableThreshold = 0.05
+    kMutableThreshold = 0.33
     kStaticThreshold = 0.5
     
     kWaitForLocalMappingTimeout = (
@@ -70,7 +70,7 @@ class Parameters:
     )  # [s]  # Timeout for parallel LBA process to finish
 
     # Number of desired keypoints per frame
-    kNumFeatures = 1000  # Default number of keypoints (can be overridden by the "settings" file)
+    kNumFeatures = 2000  # Default number of keypoints (can be overridden by the "settings" file)
 
     # Adaptive stats
     kUseDynamicDesDistanceTh = True  # Use dynamic descriptor distance threshold

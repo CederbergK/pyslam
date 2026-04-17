@@ -194,6 +194,7 @@ class Tracking:
         self.num_matched_static_points = Parameters.kNumFeatures
         self.num_matched_mutable_points = 0
         self.visible_points = []
+        self.matched_points =[]
         self.dynamicMode = False
 
         self.last_num_static_stereo_map_points = None
@@ -702,6 +703,7 @@ class Tracking:
         self.timer_seach_map.refresh()
 
         self.visible_points = visible_points
+        self.matched_points = matched_points
         matched_set = set(matched_points)
         if Parameters.weight_plot:
             for p in visible_points:
@@ -1096,14 +1098,14 @@ class Tracking:
     def cull_bad_mutable_map_points(self):
         num_culled = 0
         for p in self.visible_points:
-            if p.is_mutable:
+            if p.is_mutable and p not in self.matched_points:
                 self.local_mapping.map.remove_point(p)
                 num_culled += 1
         print(f"Culled {num_culled} mutable map points.")
     
     def need_new_keyframe_dynamic(self,f_cur):
         visible_static_points = [p for p in self.visible_points if p.is_mutable==False]
-        occlusion = (self.num_matched_map_points/len(visible_static_points))
+        occlusion = (self.num_matched_map_points/min(Parameters.kNumFeatures,len(visible_static_points)))
         clutter = self.num_matched_mutable_points / self.num_matched_map_points
         print(f"Occlusion: {occlusion:.2f}")
         print(f"Clutter: {clutter:.2f}")
