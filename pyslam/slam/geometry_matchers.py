@@ -810,25 +810,31 @@ def _search_and_fuse(
             p_keyframe = keyframe.get_point_match(best_kd_idx)
             # if there is already a map point replace it otherwise add a new point
             if p_keyframe is not None:
-                if not p.is_mutable or not p_keyframe.is_mutable:
+                if not p.is_mutable and not p_keyframe.is_mutable:  # Case 1: If both points are static they should not be fused
                     continue
-                # if not p_keyframe.is_bad():
-                #     if p_keyframe.num_observations() > p.num_observations():
-                #         p.replace_with(p_keyframe)
-                #     else:
-                #         p_keyframe.replace_with(p)
+
+                if not p_keyframe.is_mutable and p.is_mutable:  # Case 2:Allowing merge into the static point
+                    p.replace_with(p_keyframe)
+                    fused_pts_count += 1
+                    continue
+
+                if p_keyframe.is_mutable and not p.is_mutable:  # Case 3:Allowing merge into the static point
+                    p_keyframe.replace_with(p)
+                    fused_pts_count += 1
+                    continue
+
                 p_keyframe_is_bad, p_keyframe_is_good_with_better_num_obs = (
                     p_keyframe.is_bad_and_is_good_with_min_obs(p.num_observations())
                 )
-                if not p_keyframe_is_bad:
+                if not p_keyframe_is_bad:  # Case 4: both points are mutable, the most observed one is kept
                     if p_keyframe_is_good_with_better_num_obs:
                         p.replace_with(p_keyframe)
                     else:
                         p_keyframe.replace_with(p)
+                    fused_pts_count += 1
             else:
                 p.add_observation(keyframe, best_kd_idx)
                 # p.update_info()    # done outside!
-            fused_pts_count += 1
 
     return fused_pts_count
 
