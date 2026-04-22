@@ -191,11 +191,10 @@ class Tracking:
         self.num_kf_ref_tracked_points = (
             None  # number of tracked points in k_ref (considering a minimum number of observations)
         )
-        self.num_matched_static_points = Parameters.kNumFeatures
-        self.num_matched_mutable_points = 0
         self.visible_points = []
         self.matched_points =[]
         self.dynamicMode = False
+        self.max_depth_dynamic = 13.0
 
         self.last_num_static_stereo_map_points = None
         self.total_num_static_stereo_map_points = 0
@@ -699,18 +698,19 @@ class Tracking:
             max_descriptor_distance=self.descriptor_distance_sigma,
             ratio_test=Parameters.kMatchRatioTestMap,
             far_points_threshold=self.far_points_threshold,
+            max_depth_dynamic = self.max_depth_dynamic,
         )
         self.timer_seach_map.refresh()
 
         self.visible_points = visible_points
         self.matched_points = matched_points
         matched_set = set(matched_points)
-        if Parameters.weight_plot:
-            for p in visible_points:
-                if p in matched_set:
-                    p.weight = min(p.weight + 0.01, 1.0)
-                else:
-                    p.weight = max(p.weight - 0.001, 0.1)
+        #if Parameters.weight_plot:
+        #    for p in visible_points:
+        #        if p in matched_set:
+        #            p.weight = min(p.weight + 0.01, 1.0)
+        #        else:
+        #            p.weight = max(p.weight - 0.001, 0.1)
 
         # print('reproj_err_sigma: ', reproj_err_frame_map_sigma, ' used: ', self.reproj_err_frame_map_sigma)
         print(
@@ -733,7 +733,7 @@ class Tracking:
         # here we reset outliers only in the case of STEREO; in other cases,
         # we let them reach the keyframe generation and then bundle adjustment will possible decide if remove them or not;
         # only after keyframe generation the outliers are cleaned!
-        self.num_matched_map_points, self.num_matched_static_points, self.num_matched_mutable_points = f_cur.update_map_points_statistics(self.sensor_type)
+        self.num_matched_map_points = f_cur.update_map_points_statistics(self.sensor_type)
 
         # print('     # num_matched_points: %d' % (self.num_matched_map_points) )
         if (
@@ -1105,8 +1105,10 @@ class Tracking:
     
     def need_new_keyframe_dynamic(self,f_cur):
         visible_static_points = [p for p in self.visible_points if p.is_mutable==False]
-        occlusion = (self.num_matched_map_points/min(Parameters.kNumFeatures,len(visible_static_points)))
-        clutter = self.num_matched_mutable_points / self.num_matched_map_points
+        num_matched_mutable_points = len([p for p in self.matched_points if p.is_mutable])
+        
+        occlusion = (len(self.matched_points)/min(Parameters.kNumFeatures,len(visible_static_points)))
+        clutter = num_matched_mutable_points / (len(self.matched_points))
         print(f"Occlusion: {occlusion:.2f}")
         print(f"Clutter: {clutter:.2f}")
         if self.dynamicMode:#Dynamic
