@@ -419,6 +419,7 @@ def _search_map_by_projection(
     max_descriptor_distance=None,
     ratio_test=Parameters.kMatchRatioTestMap,
     far_points_threshold=None,
+    max_depth_dynamic = None,
 ):
     if max_descriptor_distance is None:
         max_descriptor_distance = Parameters.kMaxDescriptorDistance
@@ -510,6 +511,25 @@ def _search_map_by_projection(
 
     # if len(reproj_dists) > 1:
     #     reproj_dist_sigma = 1.4826 * np.median(reproj_dists)
+    # ---- post-filter visible & matched points for DECISION LOGIC ONLY ----
+    if max_depth_dynamic is not None:
+        # Build index lookup once
+        point_to_index = {p: i for i, p in enumerate(points)}
+
+        filtered_visible_points = []
+        for p in visible_points:
+            i = point_to_index[p]
+            if depths[i] > 0 and depths[i] < max_depth_dynamic:
+                filtered_visible_points.append(p)
+
+        filtered_matched_points = []
+        for p in matched_points:
+            i = point_to_index[p]
+            if depths[i] > 0 and depths[i] < max_depth_dynamic:
+                filtered_matched_points.append(p)
+
+        visible_points = filtered_visible_points
+        matched_points = filtered_matched_points
 
     return found_pts_count, found_pts_fidxs, visible_points, matched_points
 
