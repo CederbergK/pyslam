@@ -59,9 +59,13 @@ class Parameters:
     kEnableLocalMapping = False  # True: enable local mapping, False: completely disable local mapping
     kTrackingWaitForLocalMappingToGetIdle = True  # True: wait for local mapping to get idle before starting tracking, False: tracking and then local mapping in a single thread
     
-    kMutableThreshold = 0.33
-    kStaticThreshold = 0.5
-    
+    #Map-loc variables
+    kminMatchedPoints = 150 #Minimum matched points for switching to dynamic mode
+    kMutableThreshold = 0.5 #Factor of (matched mutable points)/(matched points)
+    kStaticThreshold = 0.6 #Factor of (matched static points)/(visible static points)
+    kVisiblePointsDistance = 8.0 #Furthest distance for a point to be considered visible during projection
+    kFrameDelay = 3 #Minimum number of frames between KFs
+
     kWaitForLocalMappingTimeout = (
         0.5 if not USE_CPP_CORE else 0.05
     )  # [s]  # Timeout for waiting local mapping to be idle (if kTrackingWaitForLocalMappingToGetIdle is True)   (was previously 1.5)

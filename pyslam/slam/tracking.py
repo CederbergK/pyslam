@@ -191,10 +191,12 @@ class Tracking:
         self.num_kf_ref_tracked_points = (
             None  # number of tracked points in k_ref (considering a minimum number of observations)
         )
+        ###Added variables
         self.visible_points = []
         self.matched_points =[]
         self.dynamicMode = False
-        self.max_depth_dynamic = 13.0
+        self.visible_points_distance = Parameters.kVisiblePointsDistance
+        ####
 
         self.last_num_static_stereo_map_points = None
         self.total_num_static_stereo_map_points = 0
@@ -698,7 +700,7 @@ class Tracking:
             max_descriptor_distance=self.descriptor_distance_sigma,
             ratio_test=Parameters.kMatchRatioTestMap,
             far_points_threshold=self.far_points_threshold,
-            max_depth_dynamic = self.max_depth_dynamic,
+            visible_points_distance = self.visible_points_distance if self.dynamicMode else None,
         )
         self.timer_seach_map.refresh()
 
@@ -1110,10 +1112,11 @@ class Tracking:
         occlusion = (len(self.matched_points)/min(Parameters.kNumFeatures,len(visible_static_points)))
         clutter = num_matched_mutable_points / (len(self.matched_points))
         print(f"Occlusion: {occlusion:.2f}")
+        print(f"Matched points: {len(self.matched_points)}")
         print(f"Clutter: {clutter:.2f}")
         if self.dynamicMode:#Dynamic
-            if f_cur.id >= (self.kf_last.id + 10):
-                if occlusion < Parameters.kStaticThreshold:
+            if f_cur.id >= (self.kf_last.id + Parameters.kFrameDelay): #Kanske att tidströskeln ska finnas i config.parameters?
+                if occlusion < Parameters.kStaticThreshold and len(self.matched_points)<Parameters.kminMatchedPoints:
                     need_new_kf = True
                 else:
                     self.dynamicMode = False
@@ -1121,7 +1124,7 @@ class Tracking:
             else:
                 need_new_kf = False
         else: #Localization
-            if occlusion < Parameters.kStaticThreshold:
+            if occlusion < Parameters.kStaticThreshold and len(self.matched_points)<Parameters.kminMatchedPoints:
                 self.dynamicMode = True
                 need_new_kf = True      
             elif clutter > Parameters.kMutableThreshold:
@@ -1427,7 +1430,7 @@ class Tracking:
                 else: #Criteria to switch between Localization and Dynamic mode
                     need_new_kf = self.need_new_keyframe_dynamic(f_cur)
                         
-                if need_new_kf:
+                if need_new_kf and not f_cur_is_blurry:
                     Printer.bold_cyan("NEW KF")
                     self.create_new_keyframe(f_cur, img, img_right, depth)
                     print(
