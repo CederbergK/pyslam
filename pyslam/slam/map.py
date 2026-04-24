@@ -637,6 +637,13 @@ class Map(object):
                 np.logical_not(recovered3d_from_stereo),
             )
 
+            max_point_distance = Parameters.add_points_range
+
+            if max_point_distance is not None:
+                cam_center = kf1.Ow()   # camera center in world coords
+                dists = np.linalg.norm(points3d - cam_center, axis=1)
+                mask_pts3d = mask_pts3d & (dists < max_point_distance)
+
             # compute reprojection errors and check chi2
             bad_chis2_1 = None
             bad_chis2_2 = None
@@ -820,6 +827,13 @@ class Map(object):
 
         if mask_pts3d is None:
             mask_pts3d = np.full(points3d.shape[0], True, dtype=bool)
+
+        max_point_distance = Parameters.add_points_range
+
+        if max_point_distance is not None:
+            cam_center = kf.Ow()   # keyframe camera center
+            dists = np.linalg.norm(points3d - cam_center, axis=1)
+            mask_pts3d = mask_pts3d & (dists < max_point_distance)
 
         # get color patches
         img_coords = np.floor(kf.kps[idxs]).astype(np.intp)  # image keypoints coordinates

@@ -38,6 +38,7 @@ class Parameters:
     time_offset = 5.0  # Loop 2.78, Dynamic: 5.0, Sparse: 3.0
     weight_plot = False  # Not connected to CPP core yet!
     plot_mutable_points = True  # Not connected to CPP core yet!
+    add_points_range = 6.0  # [m] Max distance from the camera center for adding points to the map; not connected to CPP core yet!
 
     # ================================================================
     # C++ core
