@@ -196,6 +196,7 @@ class Tracking:
         self.matched_points =[]
         self.dynamicMode = False
         self.visible_points_distance = Parameters.kVisiblePointsDistance
+        self.is_turning = False
         ####
 
         self.last_num_static_stereo_map_points = None
@@ -1117,7 +1118,11 @@ class Tracking:
         if self.dynamicMode:#Dynamic
             if f_cur.id >= (self.kf_last.id + Parameters.kFrameDelay): #Kanske att tidströskeln ska finnas i config.parameters?
                 if occlusion < Parameters.kStaticThreshold and len(self.matched_points)<Parameters.kminMatchedPoints:
-                    need_new_kf = True
+                    self.dynamicMode = True                    
+                    if self.is_turning:
+                        need_new_kf = False
+                    else:
+                        need_new_kf = True
                 else:
                     self.dynamicMode = False
                     need_new_kf = False
@@ -1126,14 +1131,29 @@ class Tracking:
         else: #Localization
             if occlusion < Parameters.kStaticThreshold and len(self.matched_points)<Parameters.kminMatchedPoints:
                 self.dynamicMode = True
-                need_new_kf = True      
-            elif clutter > Parameters.kMutableThreshold:
+                if self.is_turning:
+                    need_new_kf = False
+                else:
+                    need_new_kf = True      
+            elif clutter > Parameters.kMutableThreshold and len(self.matched_points)>Parameters.kminMatchedPoints:
                 Printer.red(f"Clutter: {clutter:.2f}")   
                 self.cull_bad_mutable_map_points()
                 need_new_kf = False
             else:
                 need_new_kf = False
         return need_new_kf
+    
+
+    def check_if_turning(self,f_cur,f_ref):
+        if f_cur.id > 0 and f_ref is not None:
+            R_cur = f_cur.pose()[:3, :3]
+            R_ref = f_ref.pose()[:3, :3]
+            R_rel = R_ref.T @ R_cur
+            angle = np.degrees(np.arccos(np.clip((np.trace(R_rel) - 1) / 2, -1.0, 1.0)))
+            if angle > 0.5:#Parameters.kTurningAngleThreshold:
+                self.is_turning = True
+            else:
+                self.is_turning = False
     
     # @ main track method @
     def track(self, img, img_right, depth, img_id, timestamp=None):
@@ -1399,6 +1419,8 @@ class Tracking:
             # find matches between {local map points} (points in the local map) and {unmatched keypoints of f_cur}
             if self.pose_is_ok:
                 self.track_local_map(f_cur)
+                
+            self.check_if_turning(f_cur,f_ref)
 
             # update slam state
             if self.pose_is_ok:
@@ -1430,7 +1452,7 @@ class Tracking:
                 else: #Criteria to switch between Localization and Dynamic mode
                     need_new_kf = self.need_new_keyframe_dynamic(f_cur)
                         
-                if need_new_kf and not f_cur_is_blurry:
+                if need_new_kf and not self.is_turning:
                     Printer.bold_cyan("NEW KF")
                     self.create_new_keyframe(f_cur, img, img_right, depth)
                     print(

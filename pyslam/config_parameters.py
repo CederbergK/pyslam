@@ -38,7 +38,6 @@ class Parameters:
     time_offset = 5.0  # Loop 2.78, Dynamic: 5.0, Sparse: 3.0
     weight_plot = False  # Not connected to CPP core yet!
     plot_mutable_points = True  # Not connected to CPP core yet!
-    add_points_range = 6.0  # [m] Max distance from the camera center for adding points to the map; not connected to CPP core yet!
 
     # ================================================================
     # C++ core
@@ -61,11 +60,12 @@ class Parameters:
     kTrackingWaitForLocalMappingToGetIdle = True  # True: wait for local mapping to get idle before starting tracking, False: tracking and then local mapping in a single thread
     
     #Map-loc variables
-    kminMatchedPoints = 150 #Minimum matched points for switching to dynamic mode
+    kminMatchedPoints = 100 #Minimum matched points for switching to dynamic mode
     kMutableThreshold = 0.5 #Factor of (matched mutable points)/(matched points)
-    kStaticThreshold = 0.6 #Factor of (matched static points)/(visible static points)
-    kVisiblePointsDistance = 8.0 #Furthest distance for a point to be considered visible during projection
-    kFrameDelay = 3 #Minimum number of frames between KFs
+    kStaticThreshold = 0.4 #Factor of (matched static points)/(visible static points)
+    kVisiblePointsDistance = 5.0 #Furthest distance for a point to be considered visible during projection
+    kFrameDelay = 15 #Minimum number of frames between KFs
+    add_points_range = 5.0  # [m] Max distance from the camera center for adding points to the map; not connected to CPP core yet!
 
     kWaitForLocalMappingTimeout = (
         0.5 if not USE_CPP_CORE else 0.05
