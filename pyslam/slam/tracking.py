@@ -1452,7 +1452,7 @@ class Tracking:
                 else: #Criteria to switch between Localization and Dynamic mode
                     need_new_kf = self.need_new_keyframe_dynamic(f_cur)
                         
-                if need_new_kf and not self.is_turning:
+                if need_new_kf:
                     Printer.bold_cyan("NEW KF")
                     self.create_new_keyframe(f_cur, img, img_right, depth)
                     print(
