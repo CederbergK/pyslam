@@ -1369,7 +1369,10 @@ class Tracking:
                 self.clean_vo_points()  # clean VO points
 
                 # do we need a new KeyFrame?
-                need_new_kf = self.need_new_keyframe(f_cur)
+                if Parameters.kEnableLocalMapping:
+                    need_new_kf = self.need_new_keyframe(f_cur)
+                else:
+                    need_new_kf = False
 
                 if need_new_kf:
                     Printer.bold_cyan("NEW KF")
