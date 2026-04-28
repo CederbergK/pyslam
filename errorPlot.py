@@ -115,18 +115,51 @@ def quat_to_R(qx, qy, qz, qw):
         [2*qx*qz-2*qy*qw, 2*qy*qz+2*qx*qw, 1-2*qx*qx-2*qy*qy]
     ])
 
+def split_into_laps(trajectory, timestamps, dist_threshold=0.5, min_time_between_laps=5.0):
+    """
+    Splits trajectory into laps based on returning close to start position.
+    
+    trajectory: Nx2 or Nx3 array
+    timestamps: list or array
+    dist_threshold: distance to consider "back at start"
+    min_time_between_laps: avoid false positives
+    """
+    laps = []
+    current_lap = [0]
+
+    start_pos = trajectory[0]
+    last_lap_time = timestamps[0]
+
+    for i in range(1, len(trajectory)):
+        dist_to_start = np.linalg.norm(trajectory[i] - start_pos)
+
+        # Detect lap completion
+        if dist_to_start < dist_threshold and (timestamps[i] - last_lap_time) > min_time_between_laps:
+            laps.append(current_lap)
+            current_lap = []
+            start_pos = trajectory[i]
+            last_lap_time = timestamps[i]
+
+        current_lap.append(i)
+
+    if current_lap:
+        laps.append(current_lap)
+
+    return laps
+
 #### Parameters to change ####
 Plot = True
 IncludeNatNav = False #Avalible for Dynamic, Spare and Ceiling
 offset = np.array([0.17,0,-0.1])
-test_name = "LoopTest" #LoopTest, Dynamic, Sparse, Ceiling
-time_offset = 2.78 #2.78 for LoopTest, 5.0 for Dynamic, 3.0 for Sparse
+test_name = "Dynamic_04_22" #LoopTest, Dynamic, Sparse, Ceiling
+time_offset = 5.8 #2.78 for LoopTest, 5.0 for Dynamic, 3.0 for Sparse
 startTime = 0.0
 
 
 #### Main Code ####
-estimation = open("/home/albincederberg/pyslam/results/"+test_name+"/trajectory_online.txt", "r", encoding="utf-8")
-gt = open("/home/albincederberg/Videos/LidarData/"+test_name, "r", encoding="utf-8")
+trajectory_name = "ORB2_SLAM_dyn"
+estimation = open("/home/walldenviktor/pyslam/results/"+trajectory_name+"/trajectory_online.txt", "r", encoding="utf-8")
+gt = open("/home/walldenviktor/Videos/LidarData/"+test_name, "r", encoding="utf-8")
 t, x, y, z, qx, qy, qz, qw, yaw = [], [], [], [], [], [], [], [], []
 t_gt, x_gt, y_gt, yaw_gt = [], [], [], []
 t_nn, x_nn, y_nn, yaw_nn = [], [], [], []
@@ -134,7 +167,7 @@ t_nn, x_nn, y_nn, yaw_nn = [], [], [], []
 #Read estimate data
 data = estimation.read()
 lines = data.split("\n")
-#lines.pop(-1)
+lines.pop(-1)
 
 #Estimate, given in TUM format [t,x,y,z,qx,qy,qz,qw]
 for line in lines:
@@ -165,7 +198,7 @@ if not IncludeNatNav: #Read GT data
     aligned = t_gt
 
 else: #Read GT data and NatNav data
-    natNav = open("/home/albincederberg/Videos/"+test_name+"/natnav", "r", encoding="utf-8")
+    natNav = open("/home/walldenviktor/Videos/"+test_name+"/natnav", "r", encoding="utf-8")
     data_nn = natNav.read()
     lines_nn = data_nn.split("\n")
     lines_nn.pop(0)
@@ -237,6 +270,10 @@ est_transformed = (T_gt_est[:3, :3] @ est_arr.T).T + T_gt_est[:3, 3]
 
 t_matched = [t - t_matched[0] for t in t_matched] #Timestamps for ploting
 
+laps = split_into_laps(est_transformed[:, :2], t_matched,
+                       dist_threshold=0.2,   # tune this!
+                       min_time_between_laps=10.0)
+
 
 errorX = est_transformed[:, [0]] - gt_arr[:, [0]]
 errorY = est_transformed[:, [1]] - gt_arr[:, [1]]  
@@ -279,48 +316,109 @@ if IncludeNatNav:
     print("Max-angle error: %.3f Average-angle error: %.3f" % (max(np.abs(angle_error_nn)),np.mean(np.abs(angle_error_nn))))
 
 
-
-####Plotting####
+#### Plotting ####
 if Plot:
 
-    fig, ax = plt.subplots(figsize=(7, 6))  # 2D axes
+    # ------------------ Trajectory plot ------------------
+    fig, ax = plt.subplots(figsize=(7, 6))
 
-    ax.plot(est_transformed[:, 0], est_transformed[:, 1], label='Estimated trajectory', color="#34a1d4")
-    ax.plot(gt_arr[:, 0],  gt_arr[:, 1],  label='Ground truth trajectory', color="#C72929DA")
-    
+    ax.plot(est_transformed[:, 0], est_transformed[:, 1],
+            label='Estimated trajectory (SLAM)', color="#34a1d4")
+    ax.plot(gt_arr[:, 0], gt_arr[:, 1],
+            label='Ground truth trajectory', color="#C72929DA")
+
     if IncludeNatNav:
-        ax.plot(nn_arr[:, 0],  nn_arr[:, 1],  label='NatNav trajectory', color="#e49653", linestyle='--')
+        ax.plot(nn_arr[:, 0], nn_arr[:, 1],
+                label='NatNav trajectory', color="#e49653", linestyle='--')
 
-    if test_name != "Sparse" and test_name != "Ceiling":
-        ax.set_aspect('equal', adjustable='box')  # keep metric aspect ratio
-        
-    ax.set_xlabel('X')
-    ax.set_ylabel('Y')
-    ax.set_title('Trajectories (2D)')
+    if test_name not in ["Sparse", "Ceiling"]:
+        ax.set_aspect('equal', adjustable='box')
+
+    ax.set_xlabel('X position [m]')
+    ax.set_ylabel('Y position [m]')
+    ax.set_title('2D Trajectory Comparison')
     ax.grid(True, linestyle='--', alpha=0.4)
-    ax.legend()
+    ax.legend(loc='best')
+
     fig.tight_layout()
 
 
+    # ------------------ Trajectory error ------------------
+    fig2, ax2 = plt.subplots(figsize=(7, 4))
 
-    ax2 = plt.figure().add_subplot()
-    ax2.plot(t_matched, traj_dists, label='Trajectory error', color="#34a1d4")
+    ax2.plot(t_matched, traj_dists,
+             label='SLAM position error', color="#34a1d4")
+
     if IncludeNatNav:
-        ax2.plot(t_matched, traj_dists_nn, label='NatNav error', color="#e49653")
+        ax2.plot(t_matched, traj_dists_nn,
+                 label='NatNav position error', color="#e49653")
 
-    ax2.set_xlabel('Time')
-    ax2.set_ylabel('Error')
-    ax2.set_title('Trajectory error over time')
+    ax2.set_xlabel('Time [s]')
+    ax2.set_ylabel('Position error [m]')
+    ax2.set_title('Position Error Over Time')
     ax2.grid(True, linestyle='--', alpha=0.4)
-    ax2.legend()
+    ax2.legend(loc='best')
 
-    ax3 = plt.figure().add_subplot()
-    ax3.plot(t_matched, yaw_matched, label='Estimated yaw', color="#34a1d4")
-    ax3.plot(t_matched, np.unwrap(yaw_gt_matched), label='Ground truth yaw', color="#C72929DA")
+    fig2.tight_layout()
+
+
+    # ------------------ Yaw plot ------------------
+    fig3, ax3 = plt.subplots(figsize=(7, 4))
+
+    ax3.plot(t_matched, yaw_matched,
+             label='Estimated yaw', color="#34a1d4")
+    ax3.plot(t_matched, np.unwrap(yaw_gt_matched),
+             label='Ground truth yaw', color="#C72929DA")
+
     if IncludeNatNav:
-        ax3.plot(t_matched, yaw_nn_matched, label='NatNav error', color="#e49653")
-    ax3.set_xlabel('Time')
-    ax3.set_ylabel('Angle (radians)')
+        ax3.plot(t_matched, yaw_nn_matched,
+                 label='NatNav yaw', color="#e49653")
+
+    ax3.set_xlabel('Time [s]')
+    ax3.set_ylabel('Yaw angle [rad]')
+    ax3.set_title('Yaw Angle Over Time')
     ax3.grid(True, linestyle='--', alpha=0.4)
-    ax3.legend()
+    ax3.legend(loc='best')
+
+    fig3.tight_layout()
+
+
+    # ------------------ Lap-wise trajectories ------------------
+    num_laps = len(laps)
+    cols = 2
+    rows = int(np.ceil(num_laps / cols))
+
+    fig4, axes = plt.subplots(rows, cols, figsize=(10, 5 * rows))
+    axes = axes.flatten()
+
+    for i, lap_indices in enumerate(laps):
+        ax = axes[i]
+
+        est_lap = est_transformed[lap_indices]
+        gt_lap = gt_arr[lap_indices]
+
+        ax.plot(est_lap[:, 0], est_lap[:, 1],
+                label='Estimation', color="#34a1d4")
+        ax.plot(gt_lap[:, 0], gt_lap[:, 1],
+                label='Ground truth', color="#C72929DA")
+        
+        if IncludeNatNav and len(nn_arr) > 0:
+            nn_lap = nn_arr[lap_indices]
+            ax.plot(nn_lap[:, 0], nn_lap[:, 1],
+                    label='NatNav', color="#e49653", linestyle='--')
+
+        ax.set_title(f'Lap {i+1}')
+        ax.set_xlabel('X position [m]')
+        ax.set_ylabel('Y position [m]')
+        ax.set_aspect('equal', adjustable='box')
+        ax.grid(True, linestyle='--', alpha=0.4)
+        ax.legend(loc='best')
+
+    # Hide unused subplots
+    for j in range(i+1, len(axes)):
+        axes[j].axis('off')
+
+    fig4.suptitle('Trajectory per Lap', fontsize=14)
+    fig4.tight_layout()
+
     plt.show()
