@@ -152,12 +152,12 @@ Plot = True
 IncludeNatNav = False #Avalible for Dynamic, Spare and Ceiling
 offset = np.array([0.17,0,-0.1])
 test_name = "Dynamic_04_22" #LoopTest, Dynamic, Sparse, Ceiling
-time_offset = 5.8 #2.78 for LoopTest, 5.0 for Dynamic, 3.0 for Sparse
+time_offset = 5.79 #2.78 for LoopTest, 5.0 for Dynamic, 3.0 for Sparse, 5.68,79 for New Dynamic
 startTime = 0.0
 
 
 #### Main Code ####
-trajectory_name = "ORB2_SLAM_dyn"
+trajectory_name = "IHS_dyn"
 estimation = open("/home/walldenviktor/pyslam/results/"+trajectory_name+"/trajectory_online.txt", "r", encoding="utf-8")
 gt = open("/home/walldenviktor/Videos/LidarData/"+test_name, "r", encoding="utf-8")
 t, x, y, z, qx, qy, qz, qw, yaw = [], [], [], [], [], [], [], [], []
