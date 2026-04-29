@@ -1111,7 +1111,7 @@ class Tracking:
         num_matched_mutable_points = len([p for p in self.matched_points if p.is_mutable])
         
         occlusion = (len(self.matched_points)/min(Parameters.kNumFeatures,len(visible_static_points)))
-        clutter = num_matched_mutable_points / (len(self.matched_points))
+        clutter = num_matched_mutable_points / max(1,(len(self.visible_points)-len(visible_static_points)))
         print(f"Occlusion: {occlusion:.2f}")
         print(f"Matched points: {len(self.matched_points)}")
         print(f"Clutter: {clutter:.2f}")
@@ -1134,9 +1134,11 @@ class Tracking:
                 if self.is_turning:
                     need_new_kf = False
                 else:
-                    need_new_kf = True      
-            elif clutter > Parameters.kMutableThreshold and len(self.matched_points)>Parameters.kminMatchedPoints:
-                Printer.red(f"Clutter: {clutter:.2f}")   
+                    need_new_kf = True    
+            elif (clutter < Parameters.kMutableThreshold and
+                len(self.matched_points)>Parameters.kminMatchedPoints*1.5 and 
+                len(self.visible_points)-len(visible_static_points)>5 
+                and not self.is_turning):
                 self.cull_bad_mutable_map_points()
                 need_new_kf = False
             else:

@@ -61,7 +61,7 @@ class Parameters:
     
     #Map-loc variables
     kminMatchedPoints = 100 #Minimum matched points for switching to dynamic mode
-    kMutableThreshold = 0.5 #Factor of (matched mutable points)/(matched points)
+    kMutableThreshold = 0.05 #Factor of (matched mutable points)/(matched points)
     kStaticThreshold = 0.4 #Factor of (matched static points)/(visible static points)
     kVisiblePointsDistance = 5.0 #Furthest distance for a point to be considered visible during projection
     kFrameDelay = 15 #Minimum number of frames between KFs

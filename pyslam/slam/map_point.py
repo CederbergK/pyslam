@@ -448,6 +448,10 @@ class MapPoint(MapPointBase):
             "normal": self.normal.tolist(),
             "first_kid": int(self.first_kid),
             "kf_ref": int(self.kf_ref.id) if self.kf_ref is not None else -1,
+            #Added to be able to save mutable state of the map point
+            "is_mutable": bool(self.is_mutable),
+            "weight": float(self.weight)
+
         }
 
     @staticmethod
@@ -494,6 +498,10 @@ class MapPoint(MapPointBase):
         p.semantic_color = (
             np.ascontiguousarray(semantic_color) if semantic_color is not None else semantic_color
         )
+        #Added to be able to save mutable state of the map point
+        p.is_mutable = json_str.get("is_mutable", False)
+        p.weight = json_str.get("weight", 1.0)
+
         return p
 
     def replace_ids_with_objects(self, points, frames, keyframes):
