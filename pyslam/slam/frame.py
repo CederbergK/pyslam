@@ -632,7 +632,7 @@ class Frame(FrameBase):
             "pose": (self._pose.Tcw.astype(float).tolist() if self._pose.Tcw is not None else None),
             "camera": self.camera.to_json(),
             "is_keyframe": bool(self.is_keyframe),
-            "median_depth": float(self.median_depth),
+            "median_depth": float(self.median_depth) if self.median_depth is not None else None,
             "fov_center_c": vector3_serialize(self.fov_center_c),
             "fov_center_w": vector3_serialize(self.fov_center_w),
             "is_blurry": bool(self.is_blurry),
@@ -699,7 +699,7 @@ class Frame(FrameBase):
 
         frame_data_dict = {}
         frame_data_dict["is_keyframe"] = json_str["is_keyframe"]
-        frame_data_dict["median_depth"] = json_str["median_depth"]
+        frame_data_dict["median_depth"] = (float(json_str["median_depth"]) if json_str["median_depth"] is not None else None)
         frame_data_dict["fov_center_c"] = vector3_deserialize(json_str.get("fov_center_c", None))
         frame_data_dict["fov_center_w"] = vector3_deserialize(json_str.get("fov_center_w", None))
 
