@@ -147,29 +147,52 @@ def split_into_laps(trajectory, timestamps, dist_threshold=0.5, min_time_between
 
     return laps
 
+def compute_motion_metrics(traj, t):
+    traj = traj[:, :2]  # use XY only
+    t = np.asarray(t)
+
+    dt = np.diff(t)
+    dt[dt <= 0] = 1e-3  # safety
+
+    # Velocity
+    vel = np.linalg.norm(np.diff(traj, axis=0), axis=1) / dt
+
+    # Acceleration
+    acc = np.diff(vel) / dt[:-1]
+
+    # Jerk
+    jerk = np.diff(acc) / dt[:-2]
+
+    return vel, acc, jerk
+
 #### Parameters to change ####
 Plot = True
 IncludeNatNav = False #Avalible for Dynamic, Spare and Ceiling
+add_EKF = True
+debug_plot = False
+
 offset = np.array([0.17,0,-0.1])
-test_name = "Dynamic_04_22" #LoopTest, Dynamic, Sparse, Ceiling
-time_offset = 5.79 #2.78 for LoopTest, 5.0 for Dynamic, 3.0 for Sparse, 5.68,79 for New Dynamic
+time_offset = 5.79 #2.78 for LoopTest, 5.0 for Dynamic, 3.0 for Sparse, 5.79 for New Dynamic
 startTime = 0.0
 
+test_name = "Dynamic_04_22" #LoopTest, Dynamic, Sparse, Ceiling
+trajectory_name = "Loc-Map_test"
 
 #### Main Code ####
-trajectory_name = "IHS_dyn"
 estimation = open("/home/walldenviktor/pyslam/results/"+trajectory_name+"/trajectory_online.txt", "r", encoding="utf-8")
 gt = open("/home/walldenviktor/Videos/LidarData/"+test_name, "r", encoding="utf-8")
 t, x, y, z, qx, qy, qz, qw, yaw = [], [], [], [], [], [], [], [], []
 t_gt, x_gt, y_gt, yaw_gt = [], [], [], []
 t_nn, x_nn, y_nn, yaw_nn = [], [], [], []
+encoder = []
+gyro = []
+gt_full = []
 
-#Read estimate data
+#### Read and extract estimate data, given in TUM format [t,x,y,z,qx,qy,qz,qw] ####
 data = estimation.read()
 lines = data.split("\n")
 lines.pop(-1)
 
-#Estimate, given in TUM format [t,x,y,z,qx,qy,qz,qw]
 for line in lines:
         vals = line.split(" ")
         t.append(float(vals[0]))
@@ -180,21 +203,27 @@ for line in lines:
         qy.append(float(vals[5]))
         qz.append(float(vals[6]))
         qw.append(float(vals[7]))
-        yaw.append(-yaw_from_cv_quaternion(float(vals[4]), float(vals[5]), float(vals[6]), float(vals[7])))
+        yaw.append(-yaw_from_cv_quaternion(float(vals[4]), float(vals[5]), float(vals[6]), float(vals[7])))  # Why is this minus?
 yaw = np.unwrap(yaw)
 
+#### Read and extract GT and NatNav data, given in custom format ####
 data_gt = gt.read()
 lines_gt = data_gt.split("\n")
 lines_gt.pop(0)
 
-if not IncludeNatNav: #Read GT data
+if not IncludeNatNav: #Read GT data, currently always extracting encoder and gyro data
     for line_gt in lines_gt:
         vals = line_gt.split(" ")
         if "state" in line_gt:
-            t_gt.append(float(vals[1]))
+            t_gt.append(float(vals[1]))  # state, encoder and gyro have the same timestamps, so we can use the state timestamps for all
             x_gt.append(float(vals[2]))
             y_gt.append(float(vals[3]))
             yaw_gt.append(float(vals[4]))
+            gt_full.append([float(vals[2]), float(vals[3]), 0.0])
+        elif "enc" in line_gt and len(vals) == 6:
+            encoder.append([float(vals[2]), float(vals[4])])
+        elif "gyro" in line_gt:
+            gyro.append(float(vals[5]))
     aligned = t_gt
 
 else: #Read GT data and NatNav data
@@ -234,7 +263,7 @@ else: #Read GT data and NatNav data
 
 yaw_gt = np.unwrap(yaw_gt)
 
-
+#### Associate timestamps between GT and estimate, and do camera to body translation ####
 matches  = associate(t, aligned, offset=time_offset, max_difference=1/41,startTime=startTime) 
 est_matches = []
 gt_matches = []
@@ -243,40 +272,157 @@ t_matched = []
 yaw_matched = []
 yaw_gt_matched = []
 yaw_nn_matched =[]
+encoder_matched = []
+gyro_matched = []
+t_agv_sampled = []
+t_cam_sampled = []
+slam_to_encoder_idx = []
 
 #Match timestamps and do camera to body translation
 for i in matches:
     j  = matches[i][1]
+    slam_to_encoder_idx.append((i, j))
     yaw_matched.append(yaw[i])
     yaw_gt_matched.append(yaw_gt[j])
-    gt_matches.append([x_gt[j], y_gt[j], 0.0])  # ground truth
+    gt_matches.append([x_gt[j], y_gt[j], 0.0])  # ground truth, add gt_full!
     t_matched.append(matches[i][2])
+
     if IncludeNatNav:
         nn_matches.append([x_nn[j], y_nn[j], 0.0])  # NatNav
         yaw_nn_matched.append(yaw_nn[j])
+    elif add_EKF:
+        encoder_matched.append(encoder[j])
+        gyro_matched.append(gyro[j])
+
     t_cam = np.array([x[i], y[i], z[i]])
+    t_cam_sampled.append(t_cam)
     R = quat_to_R(qx[i], qy[i], qz[i], qw[i])   
     t_agv = t_cam + R @ offset
+    t_agv_sampled.append(t_agv)
     est_matches.append([t_agv[2],-t_agv[0], 0]) 
 
 est_arr = np.asarray(est_matches, dtype=float)
 gt_arr  = np.asarray(gt_matches, dtype=float)
 nn_arr  = np.asarray(nn_matches, dtype=float)
+gt_full_arr  = np.asarray(gt_full, dtype=float)
 
+# ================= EKF FUSION =================
+if add_EKF:
+    N = len(encoder)
+
+    # State: [x, y, yaw]
+    X = np.zeros((N, 3))
+    X_pred_sampled = np.zeros((N, 3))
+    P = np.eye(3) * 0.1
+
+    # Initialize from first SLAM pose
+    #X[0, 0:2] = est_arr[0, 0:2]
+    #X[0, 2] = yaw_matched[0]
+    X[0, 0:2] = [0,0]
+    X[0, 2] = 0
+
+    # Noise matrices (TUNE THESE!)
+    Q = np.diag([0.1, 0.1, 0.1])   # process noise
+    R = np.diag([1, 1, 1])   # measurement noise
+
+    slam_idx = 0
+
+    for k in range(1, N):
+
+        dt = t_gt[k] - t_gt[k-1]
+        if dt <= 0:
+            dt = 1e-3
+
+        # -------- PREDICTION --------
+        yaw = X[k-1, 2]
+
+        # Get encoder velocities
+        v_l = encoder[k][0]
+        v_r = encoder[k][1]
+
+        v = (v_r + v_l) / 2.0
+
+        # Angular velocity fusion
+        wheel_base = 0.40
+        omega_enc = (v_r - v_l) / wheel_base
+        omega_gyro = gyro[k]
+
+        alpha = 0.29
+        omega = alpha * omega_gyro + (1 - alpha) * omega_enc
+
+        theta_new = yaw + omega * dt
+
+        # Motion model
+        if abs(omega) > 1e-6:
+            x_pred = X[k-1, 0] + v/omega * (np.sin(theta_new) - np.sin(yaw))
+            y_pred = X[k-1, 1] + v/omega * (-np.cos(theta_new) + np.cos(yaw))
+        else:
+            x_pred = X[k-1, 0] + v * np.cos(yaw) * dt
+            y_pred = X[k-1, 1] + v * np.sin(yaw) * dt
+
+        yaw_pred = theta_new
+
+        X_pred = np.array([x_pred, y_pred, yaw_pred])
+        X_pred_sampled[k] = X_pred
+
+        # Jacobian
+        F = np.array([
+            [1, 0, -v * dt * np.sin(yaw)],
+            [0, 1,  v * dt * np.cos(yaw)],
+            [0, 0, 1]
+        ])
+
+        P = F @ P @ F.T + Q
+        X[k] = X_pred
+
+        # -------- UPDATE (SLAM measurement) --------
+        if slam_idx < len(slam_to_encoder_idx):
+            slam_i, enc_j = slam_to_encoder_idx[slam_idx]
+            if i == enc_j:
+                z = np.array([est_arr[slam_idx, 0], est_arr[slam_idx, 1], yaw_matched[slam_idx]])
+
+                H = np.eye(3)
+
+                y_residual = z - X_pred
+
+                # normalize angle
+                y_residual[2] = np.arctan2(np.sin(y_residual[2]), np.cos(y_residual[2]))
+
+                S = H @ P @ H.T + R
+                K = P @ H.T @ np.linalg.inv(S)
+
+                X[k] = X_pred + K @ y_residual
+                P = (np.eye(3) - K @ H) @ P
+
+                slam_idx += 1
+
+    # Replace SLAM trajectory with fused one
+    est_arr_fused = np.zeros((N, 3))
+    est_arr_fused[:, 0:2] = X[:, 0:2]
+    yaw_matched = X[:, 2]
+
+    traj_for_eval = est_arr_fused
+    gt_for_eval = gt_full_arr
+    t_matched = [t - t_matched[0] for t in t_gt] #Timestamps for ploting
+    yaw_gt_matched = yaw_gt
+
+else:
+    traj_for_eval = est_arr
+    gt_for_eval = gt_arr
+    t_matched = [t - t_matched[0] for t in t_matched] #Timestamps for ploting
 
 #Rotate and translate estimated trajectory to GT frame
-T_gt_est, T_est_gt, is_ok = align_3d_points_with_svd(gt_arr, est_arr, find_scale=False)
-est_transformed = (T_gt_est[:3, :3] @ est_arr.T).T + T_gt_est[:3, 3]
+T_gt_est, T_est_gt, is_ok = align_3d_points_with_svd(gt_for_eval, traj_for_eval, find_scale=False)
+est_transformed = (T_gt_est[:3, :3] @ traj_for_eval.T).T + T_gt_est[:3, 3]
 
-t_matched = [t - t_matched[0] for t in t_matched] #Timestamps for ploting
 
+# =================== ERROR ANALYSIS =================
 laps = split_into_laps(est_transformed[:, :2], t_matched,
                        dist_threshold=0.2,   # tune this!
                        min_time_between_laps=10.0)
 
-
-errorX = est_transformed[:, [0]] - gt_arr[:, [0]]
-errorY = est_transformed[:, [1]] - gt_arr[:, [1]]  
+errorX = est_transformed[:, [0]] - gt_for_eval[:, [0]]
+errorY = est_transformed[:, [1]] - gt_for_eval[:, [1]]
 traj_dists = np.linalg.norm(np.column_stack((errorX, errorY)), axis=1)
 rms_error = np.sqrt(np.mean(np.power(traj_dists, 2)))
 
@@ -296,8 +442,6 @@ for i in range(len(yaw_matched)):
     if IncludeNatNav:
         angle_error_nn.append(math.degrees(yaw_nn_matched[i] - yaw_gt_matched[i]))
 
-
-
 print("Estimate errors:")
 print("Max-x: %.3f Max-y: %.3f RMS: %.3f" % (max(abs(errorX))[0],
                                      max(abs(errorY))[0],
@@ -315,6 +459,39 @@ if IncludeNatNav:
                                         rms_error_nn))
     print("Max-angle error: %.3f Average-angle error: %.3f" % (max(np.abs(angle_error_nn)),np.mean(np.abs(angle_error_nn))))
 
+# Compute velocity, acceleration and jerk
+vel_est, acc_est, jerk_est = compute_motion_metrics(est_transformed, t_matched)
+vel_gt,  acc_gt,  jerk_gt  = compute_motion_metrics(gt_for_eval, t_matched)
+
+# Velocity RMSE
+min_len = min(len(vel_est), len(vel_gt))
+vel_rmse = np.sqrt(np.mean((vel_est[:min_len] - vel_gt[:min_len])**2))
+
+# Acceleration std
+acc_std = np.std(acc_est)
+
+# Jerk std
+jerk_std = np.std(jerk_est)
+
+print("\n--- SLAM Motion Metrics ---")
+print("Velocity RMSE: %.3f m/s" % vel_rmse)
+print("Acceleration std: %.3f m/s²" % acc_std)
+print("Jerk std: %.3f m/s³" % jerk_std)
+
+if IncludeNatNav and len(nn_arr) > 0:
+
+    vel_nn, acc_nn, jerk_nn = compute_motion_metrics(nn_arr, t_matched)
+
+    min_len_nn = min(len(vel_nn), len(vel_gt))
+    vel_rmse_nn = np.sqrt(np.mean((vel_nn[:min_len_nn] - vel_gt[:min_len_nn])**2))
+
+    acc_std_nn = np.std(acc_nn)
+    jerk_std_nn = np.std(jerk_nn)
+
+    print("\n--- NatNav Motion Metrics ---")
+    print("Velocity RMSE: %.3f m/s" % vel_rmse_nn)
+    print("Acceleration std: %.3f m/s²" % acc_std_nn)
+    print("Jerk std: %.3f m/s³" % jerk_std_nn)
 
 #### Plotting ####
 if Plot:
@@ -324,7 +501,7 @@ if Plot:
 
     ax.plot(est_transformed[:, 0], est_transformed[:, 1],
             label='Estimated trajectory (SLAM)', color="#34a1d4")
-    ax.plot(gt_arr[:, 0], gt_arr[:, 1],
+    ax.plot(gt_for_eval[:, 0], gt_for_eval[:, 1],
             label='Ground truth trajectory', color="#C72929DA")
 
     if IncludeNatNav:
@@ -395,7 +572,7 @@ if Plot:
         ax = axes[i]
 
         est_lap = est_transformed[lap_indices]
-        gt_lap = gt_arr[lap_indices]
+        gt_lap = gt_for_eval[lap_indices]
 
         ax.plot(est_lap[:, 0], est_lap[:, 1],
                 label='Estimation', color="#34a1d4")
@@ -421,4 +598,26 @@ if Plot:
     fig4.suptitle('Trajectory per Lap', fontsize=14)
     fig4.tight_layout()
 
+    plt.show()
+
+if debug_plot:
+    plt.figure()
+    #plt.plot(gt_matches[:, 0], gt_matches[:, 1], label='GT')
+    plt.plot([p[0] for p in gt_matches],
+            [p[1] for p in gt_matches], label='AGV Sampled', color="r")
+    plt.plot([p[2] for p in t_agv_sampled],
+            [p[0] for p in t_agv_sampled], color="g")
+    plt.plot([p[2] for p in t_cam_sampled],
+            [p[0] for p in t_cam_sampled], color="k")
+    plt.plot([p[0] for p in est_matches],
+            [p[1] for p in est_matches], color="y")
+    plt.plot(est_transformed[:, 0], est_transformed[:, 1], color="b")
+    plt.show()
+
+    plt.figure()
+    plt.plot(t[1:], vel_est, label="Estimated speed")
+    plt.plot(t[1:], vel_gt, label="GT speed")
+    plt.legend()
+    plt.title("Speed comparison")
+    plt.grid()
     plt.show()
