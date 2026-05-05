@@ -165,21 +165,52 @@ def compute_motion_metrics(traj, t):
 
     return vel, acc, jerk
 
+def select_laps(laps, selection):
+    """
+    selection:
+        "all"      -> all laps
+        int        -> single lap (1-based index)
+        (start,end)-> range inclusive, e.g. (3,6)
+    """
+    if selection == "all":
+        return laps
+
+    elif isinstance(selection, int):
+        return [laps[selection - 1]]  # convert to 0-based index
+
+    elif isinstance(selection, tuple) and len(selection) == 2:
+        start, end = selection
+        return laps[start - 1:end]  # inclusive range
+
+    else:
+        raise ValueError("Invalid lap selection")
+
 #### Parameters to change ####
 Plot = True
-IncludeNatNav = False #Avalible for Dynamic, Spare and Ceiling
-add_EKF = True
+IncludeNatNav = True #Avalible for Dynamic, Spare and Ceiling
+add_EKF = False
 debug_plot = False
+
+IncludeAllTrajPlots = False
+lap_selection = 6   # <-- int, (start,end) or "all"
 
 offset = np.array([0.17,0,-0.1])
 time_offset = 5.79 #2.78 for LoopTest, 5.0 for Dynamic, 3.0 for Sparse, 5.79 for New Dynamic
 startTime = 0.0
 
 test_name = "Dynamic_04_22" #LoopTest, Dynamic, Sparse, Ceiling
-trajectory_name = "Loc-Map_test"
+trajectory_names = ["Loc-Map_test", "IHS_new", "SLAM-map_test"]  # For Dynamic test
+trajectory_name = trajectory_names[0]
 
 #### Main Code ####
 estimation = open("/home/walldenviktor/pyslam/results/"+trajectory_name+"/trajectory_online.txt", "r", encoding="utf-8")
+other_estimations = []  # Only used for plotting all trajectories together, not for error analysis at the moment
+names = []
+for name in trajectory_names:
+    if name != trajectory_name:
+        other_estimations.append(open("/home/walldenviktor/pyslam/results/"+name+"/trajectory_online.txt", "r", encoding="utf-8"))
+        names.append(name)
+
 gt = open("/home/walldenviktor/Videos/LidarData/"+test_name, "r", encoding="utf-8")
 t, x, y, z, qx, qy, qz, qw, yaw = [], [], [], [], [], [], [], [], []
 t_gt, x_gt, y_gt, yaw_gt = [], [], [], []
@@ -206,6 +237,21 @@ for line in lines:
         yaw.append(-yaw_from_cv_quaternion(float(vals[4]), float(vals[5]), float(vals[6]), float(vals[7])))  # Why is this minus?
 yaw = np.unwrap(yaw)
 
+x_other_estimations, y_other_estimations, z_other_estimations = [], [], []
+for other_estimation in other_estimations:
+    data = other_estimation.read()
+    lines = data.split("\n")
+    lines.pop(-1)
+    x_other, y_other, z_other = [], [], []
+
+    for line in lines:
+        vals = line.split(" ")
+        x_other.append(float(vals[1]))
+        y_other.append(float(vals[2]))
+        z_other.append(float(vals[3]))
+    x_other_estimations.append(x_other)
+    y_other_estimations.append(y_other)
+    z_other_estimations.append(z_other)
 #### Read and extract GT and NatNav data, given in custom format ####
 data_gt = gt.read()
 lines_gt = data_gt.split("\n")
@@ -266,6 +312,8 @@ yaw_gt = np.unwrap(yaw_gt)
 #### Associate timestamps between GT and estimate, and do camera to body translation ####
 matches  = associate(t, aligned, offset=time_offset, max_difference=1/41,startTime=startTime) 
 est_matches = []
+est_matches_1 = []
+est_matches_2 = []
 gt_matches = []
 nn_matches = []
 t_matched = []
@@ -295,13 +343,23 @@ for i in matches:
         gyro_matched.append(gyro[j])
 
     t_cam = np.array([x[i], y[i], z[i]])
+    t_cam_est_1 = np.array([x_other_estimations[0][i], y_other_estimations[0][i], z_other_estimations[0][i]])
+    t_cam_est_2 = np.array([x_other_estimations[1][i], y_other_estimations[1][i], z_other_estimations[1][i]])
     t_cam_sampled.append(t_cam)
     R = quat_to_R(qx[i], qy[i], qz[i], qw[i])   
     t_agv = t_cam + R @ offset
+    t_agv_est_1 = t_cam_est_1 + R @ offset
+    t_agv_est_2 = t_cam_est_2 + R @ offset
     t_agv_sampled.append(t_agv)
     est_matches.append([t_agv[2],-t_agv[0], 0]) 
+    est_matches_1.append([t_agv_est_1[2], -t_agv_est_1[0], 0])
+    est_matches_2.append([t_agv_est_2[2], -t_agv_est_2[0], 0])
+
 
 est_arr = np.asarray(est_matches, dtype=float)
+est_arr_1 = np.asarray(est_matches_1, dtype=float)
+est_arr_2 = np.asarray(est_matches_2, dtype=float)
+
 gt_arr  = np.asarray(gt_matches, dtype=float)
 nn_arr  = np.asarray(nn_matches, dtype=float)
 gt_full_arr  = np.asarray(gt_full, dtype=float)
@@ -414,13 +472,11 @@ else:
 #Rotate and translate estimated trajectory to GT frame
 T_gt_est, T_est_gt, is_ok = align_3d_points_with_svd(gt_for_eval, traj_for_eval, find_scale=False)
 est_transformed = (T_gt_est[:3, :3] @ traj_for_eval.T).T + T_gt_est[:3, 3]
+est_transformed_1 = (T_gt_est[:3, :3] @ est_arr_1.T).T + T_gt_est[:3, 3]
+est_transformed_2 = (T_gt_est[:3, :3] @ est_arr_2.T).T + T_gt_est[:3, 3]
 
 
 # =================== ERROR ANALYSIS =================
-laps = split_into_laps(est_transformed[:, :2], t_matched,
-                       dist_threshold=0.2,   # tune this!
-                       min_time_between_laps=10.0)
-
 errorX = est_transformed[:, [0]] - gt_for_eval[:, [0]]
 errorY = est_transformed[:, [1]] - gt_for_eval[:, [1]]
 traj_dists = np.linalg.norm(np.column_stack((errorX, errorY)), axis=1)
@@ -561,30 +617,57 @@ if Plot:
 
 
     # ------------------ Lap-wise trajectories ------------------
-    num_laps = len(laps)
-    cols = 2
-    rows = int(np.ceil(num_laps / cols))
+    laps = split_into_laps(est_transformed[:, :2], t_matched,
+                        dist_threshold=0.2,
+                        min_time_between_laps=10.0)
 
-    fig4, axes = plt.subplots(rows, cols, figsize=(10, 5 * rows))
-    axes = axes.flatten()
+    laps_to_plot = select_laps(laps, lap_selection)
 
-    for i, lap_indices in enumerate(laps):
-        ax = axes[i]
+    num_laps = len(laps_to_plot)
+    if num_laps == 1:
+        cols, rows = 1, 1
+    elif num_laps <= 3:
+        cols, rows = num_laps, 1
+    else:
+        cols = 3
+        rows = int(np.ceil(num_laps / cols))
+
+    fig4, axes = plt.subplots(rows, cols, figsize=(5*cols, 5 * rows))
+    if num_laps == 1:
+        axes = [axes]
+    else:
+        axes = axes.flatten()
+
+    selected_indices = [laps.index(l) for l in laps_to_plot]
+
+    for plot_idx, lap_indices in enumerate(laps_to_plot):
+        lap_number = selected_indices[plot_idx] + 1
+        ax = axes[plot_idx]
 
         est_lap = est_transformed[lap_indices]
         gt_lap = gt_for_eval[lap_indices]
 
         ax.plot(est_lap[:, 0], est_lap[:, 1],
-                label='Estimation', color="#34a1d4")
+                label=trajectory_name, color="#34a1d4")
         ax.plot(gt_lap[:, 0], gt_lap[:, 1],
                 label='Ground truth', color="#C72929DA")
-        
+
         if IncludeNatNav and len(nn_arr) > 0:
             nn_lap = nn_arr[lap_indices]
             ax.plot(nn_lap[:, 0], nn_lap[:, 1],
                     label='NatNav', color="#e49653", linestyle='--')
 
-        ax.set_title(f'Lap {i+1}')
+        if IncludeAllTrajPlots:
+            est1_lap = est_transformed_1[lap_indices]
+            name1 = names[0]
+            ax.plot(est1_lap[:, 0], est1_lap[:, 1],
+                    label=name1, color="#22d148", linestyle='--')
+            est2_lap = est_transformed_2[lap_indices]
+            name2 = names[1]
+            ax.plot(est2_lap[:, 0], est2_lap[:, 1],
+                    label=name2, color="#7708D1DA", linestyle='--')
+
+        ax.set_title(f'Lap {lap_number}')
         ax.set_xlabel('X position [m]')
         ax.set_ylabel('Y position [m]')
         ax.set_aspect('equal', adjustable='box')
@@ -592,7 +675,7 @@ if Plot:
         ax.legend(loc='best')
 
     # Hide unused subplots
-    for j in range(i+1, len(axes)):
+    for j in range(num_laps, len(axes)):
         axes[j].axis('off')
 
     fig4.suptitle('Trajectory per Lap', fontsize=14)
