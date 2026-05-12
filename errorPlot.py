@@ -383,7 +383,7 @@ IncludeNatNav = True #Avalible for Dynamic, Spare and Ceiling
 add_EKF = False
 debug_plot = False
 
-lap_selection = 6  # <-- int, (start,end) or "all"
+lap_selection = (3,6)  # <-- int, (start,end) or "all"
 offset = np.array([0.17,0,-0.1])
 time_offset = 5.79 #2.78 for LoopTest, 5.0 for Dynamic, 3.0 for Sparse, 5.79 for New Dynamic
 startTime = 0.0
@@ -527,7 +527,7 @@ IHS_max_error = np.max(IHS_ATE)
 OSS_max_error = np.max(OSS_ATE)
 SLAM_max_error = np.max(SLAM_ATE)
 
-print("--- Translation and Rotation Metrics ---")
+print("\n --- Translation and Rotation Metrics ---")
 #print("Max-x: %.3f Max-y: %.3f RMS: %.3f" % (max(abs(errorX))[0],max(abs(errorY))[0],rms_error))
 print("IHS Max Error: %.3f IHS RMSE: %.3f" % (IHS_max_error,IHS_rms_error))
 print("OSS Max Error: %.3f OSS RMSE: %.3f" % (OSS_max_error,OSS_rms_error))
@@ -567,7 +567,7 @@ if IncludeNatNav:
     traj_dists_nn = np.sqrt(errorX_nn**2 + errorY_nn**2)
     rms_error_nn = np.sqrt(np.mean(np.power(traj_dists_nn, 2)))
     max_pos_error_nn = np.max(traj_dists_nn)
-    print("NatNav errors:")
+    print("\n --- NatNav Translation and Rotation Metrics ---")
     print("Max Error: %.3f RMS: %.3f" % (max_pos_error_nn, rms_error_nn))
     print("Max-angle error: %.3f Average-angle error: %.3f" % (max(np.abs(angle_error_nn)),np.mean(np.abs(angle_error_nn))))
 
@@ -576,6 +576,7 @@ if IncludeNatNav:
 IHS_error_robot = []
 OSS_error_robot = []
 SLAM_error_robot = []
+NatNav_error_robot = []
 
 for i in range(len(IHS)):
 
@@ -586,6 +587,9 @@ for i in range(len(IHS)):
     OSS_dy = OSS[i,1] - gt_for_eval[i,1]
     SLAM_dx = SLAM[i,0] - gt_for_eval[i,0]
     SLAM_dy = SLAM[i,1] - gt_for_eval[i,1]
+    if IncludeNatNav:
+        nn_dx = nn_arr[i,0] - gt_for_eval[i,0]
+        nn_dy = nn_arr[i,1] - gt_for_eval[i,1]
 
     theta = yaw_gt_matched[i]
 
@@ -601,10 +605,14 @@ for i in range(len(IHS)):
     IHS_err_robot = R_world_robot @ np.array([IHS_dx, IHS_dy])
     OSS_err_robot = R_world_robot @ np.array([OSS_dx, OSS_dy])
     SLAM_err_robot = R_world_robot @ np.array([SLAM_dx, SLAM_dy])
-
+        
     IHS_error_robot.append(IHS_err_robot)
     OSS_error_robot.append(OSS_err_robot)
     SLAM_error_robot.append(SLAM_err_robot)
+
+    if IncludeNatNav:
+        nn_err_robot = R_world_robot @ np.array([nn_dx, nn_dy])
+        NatNav_error_robot.append(nn_err_robot)
 
 IHS_error_robot = np.array(IHS_error_robot)
 OSS_error_robot = np.array(OSS_error_robot)
@@ -624,7 +632,6 @@ OSS_lat_rmse  = np.sqrt(np.mean(OSS_lateral_error**2))
 SLAM_long_rmse = np.sqrt(np.mean(SLAM_longitudinal_error**2))
 SLAM_lat_rmse  = np.sqrt(np.mean(SLAM_lateral_error**2))
 
-
 print("\n--- Long/Lat Metrics ---")
 print("IHS Max longitudinal error: %.3f m" %
       np.max(np.abs(IHS_longitudinal_error)))
@@ -638,6 +645,16 @@ print("SLAM Max longitudinal error: %.3f m" %
       np.max(np.abs(SLAM_longitudinal_error)))
 print("SLAM Max lateral error: %.3f m" %
       np.max(np.abs(SLAM_lateral_error)))
+
+if IncludeNatNav:
+    NatNav_error_robot = np.array(NatNav_error_robot)
+    nn_longitudinal_error = NatNav_error_robot[:,0]
+    nn_lateral_error = NatNav_error_robot[:,1]
+    nn_long_rmse = np.sqrt(np.mean(nn_longitudinal_error**2))
+    nn_lat_rmse  = np.sqrt(np.mean(nn_lateral_error**2))
+    print("\n--- NatNav Long/Lat Metrics ---")
+    print("NatNav Max longitudinal error: %.3f m" % np.max(np.abs(nn_longitudinal_error)))
+    print("NatNav Max lateral error: %.3f m" % np.max(np.abs(nn_lateral_error)))
 
 
 # ============================================= Velocity and acceleration errors ====================================================
