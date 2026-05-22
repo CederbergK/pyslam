@@ -557,9 +557,23 @@ for i in range(len(yaw_IHS)):
     if IncludeNatNav:
         angle_error_nn.append(math.degrees(yaw_nn_matched[i] - yaw_gt_matched[i]))
 
-print("IHS Max-angle error: %.3f IHS Average-angle error: %.3f" % (max(np.abs(angle_error_IHS)),np.mean(np.mean(angle_error_IHS))))
-print("OSS Max-angle error: %.3f OSS Average-angle error: %.3f" % (max(np.abs(angle_error_OSS)),np.mean(np.mean(angle_error_OSS))))
-print("SLAM Max-angle error: %.3f SLAM Average-angle error: %.3f" % (max(np.abs(angle_error_SLAM)),np.mean(np.mean(angle_error_SLAM))))
+print("IHS Max-angle error: %.3f | RMSE: %.3f | MAE: %.3f" % (
+    np.max(np.abs(angle_error_IHS)),
+    np.sqrt(np.mean(angle_error_IHS**2)),
+    np.mean(np.abs(angle_error_IHS))
+))
+
+print("OSS Max-angle error: %.3f | RMSE: %.3f | MAE: %.3f" % (
+    np.max(np.abs(angle_error_OSS)),
+    np.sqrt(np.mean(angle_error_OSS**2)),
+    np.mean(np.abs(angle_error_OSS))
+))
+
+print("SLAM Max-angle error: %.3f | RMSE: %.3f | MAE: %.3f" % (
+    np.max(np.abs(angle_error_SLAM)),
+    np.sqrt(np.mean(angle_error_SLAM**2)),
+    np.mean(np.abs(angle_error_SLAM))
+))
 if IncludeNatNav:
     nn_arr = nn_matches[laps_for_eval]
     errorX_nn = nn_arr[:, [0]] - gt_for_eval[:, [0]]
@@ -569,7 +583,7 @@ if IncludeNatNav:
     max_pos_error_nn = np.max(traj_dists_nn)
     print("\n --- NatNav Translation and Rotation Metrics ---")
     print("Max Error: %.3f RMS: %.3f" % (max_pos_error_nn, rms_error_nn))
-    print("Max-angle error: %.3f Average-angle error: %.3f" % (max(np.abs(angle_error_nn)),np.mean(np.abs(angle_error_nn))))
+    print("Max-angle error: %.3f | RMSE: %.3f | MAE: %.3f" % (max(np.abs(angle_error_nn)), np.sqrt(np.mean(angle_error_nn**2)), np.mean(np.abs(angle_error_nn))))
 
 
 # ============================================= Longitudinal/Lateral translation errors ====================================================
@@ -810,18 +824,18 @@ if Plot:
 
     # ------------------ Angle error plot ------------------
     fig4, ax4 = plt.subplots(figsize=(7, 4))    
-    ax4.plot(t_matched, angle_error_IHS,
+    ax4.plot(t_matched, abs(angle_error_IHS),
              label='IHS angle error', color="#34a1d4")
-    ax4.plot(t_matched, angle_error_OSS,
+    ax4.plot(t_matched, abs(angle_error_OSS),
              label='OSS angle error', color="#22d148")
-    ax4.plot(t_matched, angle_error_SLAM,
+    ax4.plot(t_matched, abs(angle_error_SLAM),
              label='SLAM angle error', color="#7708D1DA")   
     if IncludeNatNav:
-        ax4.plot(t_matched, angle_error_nn,
+        ax4.plot(t_matched, abs(angle_error_nn),
                  label='NatNav angle error', color="#e49653")
 
     ax4.set_xlabel('Time [s]')
-    ax4.set_ylabel('Angle error [rad]')
+    ax4.set_ylabel('Absolute angle error [deg]')
     ax4.set_title('Angle Error Over Time')
     ax4.grid(True, linestyle='--', alpha=0.4)
     ax4.legend(loc='best')
