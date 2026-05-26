@@ -557,6 +557,12 @@ for i in range(len(yaw_IHS)):
     if IncludeNatNav:
         angle_error_nn.append(math.degrees(yaw_nn_matched[i] - yaw_gt_matched[i]))
 
+angle_error_IHS = np.array(angle_error_IHS)
+angle_error_OSS = np.array(angle_error_OSS)
+angle_error_SLAM = np.array(angle_error_SLAM)
+if IncludeNatNav:
+    angle_error_nn = np.array(angle_error_nn)
+
 print("IHS Max-angle error: %.3f | RMSE: %.3f | MAE: %.3f" % (
     np.max(np.abs(angle_error_IHS)),
     np.sqrt(np.mean(angle_error_IHS**2)),
