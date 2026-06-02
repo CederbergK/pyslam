@@ -191,7 +191,7 @@ class RecordedDataset(Dataset):
         sensor_type=SensorType.RGBD,
         associations=None,
         start_frame_id=0,
-        type=DatasetType.TUM,
+        type=DatasetType.RECORDED,
         environment_type=DatasetEnvironmentType.INDOOR #Den här används i Slam funktionen vet inte vad den gör än
     ):
         super().__init__(
