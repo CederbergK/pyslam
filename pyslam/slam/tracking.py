@@ -1448,11 +1448,12 @@ class Tracking:
                 f_cur.clean_vo_matches()  # clean VO matches
                 self.clean_vo_points()  # clean VO points
 
-                if Parameters.kEnableLocalMapping: #Mapping mode
-                    need_new_kf = self.need_new_keyframe(f_cur)
-
-                else: #Criteria to switch between Localization and Dynamic mode
-                    need_new_kf = self.need_new_keyframe_dynamic(f_cur)
+                # if Parameter.mode = "SLAM"
+                    #need_new_kf = self.need_new_keyframe(f_cur)
+                # elif Parameter.mode = "IHS":
+                need_new_kf = self.need_new_keyframe_dynamic(f_cur)
+                # else:
+                #     need_new_kf = False
                         
                 if need_new_kf:
                     Printer.bold_cyan("NEW KF")
